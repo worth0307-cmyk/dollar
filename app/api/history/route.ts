@@ -1,50 +1,64 @@
 import { NextResponse } from 'next/server'
-import { fetchHistory } from '@/lib/yahoo'
+import { fetchStooqHistory } from '@/lib/stooq'
+import { fetchBtcHistory } from '@/lib/coingecko'
 
 export const dynamic = 'force-dynamic'
 
-const SYMBOLS = ['^DXY', 'BTC-USD', 'BZ=F', 'GC=F', '^GSPC']
 const KEYS = ['dxy', 'btc', 'brent', 'gold', 'sp500']
+
+async function fetchHistory(key: string, range: string) {
+  return key === 'btc' ? fetchBtcHistory(range) : fetchStooqHistory(key, range)
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const range = searchParams.get('range') ?? '1mo'
 
-  const results = await Promise.allSettled(SYMBOLS.map((s) => fetchHistory(s, range)))
+  const results = await Promise.allSettled(KEYS.map((k) => fetchHistory(k, range)))
 
-  // Find a reference timestamp array (first success)
-  const ref = results.find(
-    (r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof fetchHistory>>> =>
-      r.status === 'fulfilled'
-  )
-  if (!ref) return NextResponse.json({ error: 'All fetches failed' }, { status: 502 })
-
-  const refTimestamps = ref.value.timestamps
-
-  // Build chart rows keyed by timestamp bucket (each result may have slightly different timestamps)
-  const rows: Record<string, Record<string, number>> = {}
-
-  results.forEach((r, i) => {
-    if (r.status !== 'fulfilled') return
+  // Build dateString → close map for each asset
+  type DMap = Map<string, number>
+  const maps: (DMap | null)[] = results.map((r) => {
+    if (r.status !== 'fulfilled') return null
     const { timestamps, closes } = r.value
-    // Find first non-null close as base
-    const base = closes.find((c) => c != null)
-    if (base == null) return
-    timestamps.forEach((ts, j) => {
-      const c = closes[j]
-      if (c == null) return
-      const key = String(ts)
-      if (!rows[key]) rows[key] = { time: ts * 1000 }
-      rows[key][KEYS[i]] = ((c - base) / base) * 100
+    const m = new Map<string, number>()
+    timestamps.forEach((ts, i) => {
+      const c = closes[i]
+      if (c != null) {
+        const d = new Date(ts * 1000).toISOString().slice(0, 10)
+        m.set(d, c)
+      }
     })
+    return m
   })
 
-  // Sort by timestamp and only include rows that have at least one asset value
-  const chartData = refTimestamps
-    .map((ts) => rows[String(ts)])
-    .filter(Boolean)
+  // Collect and sort all dates across all assets
+  const allDates = new Set<string>()
+  maps.forEach((m) => m?.forEach((_, d) => allDates.add(d)))
+  const dates = Array.from(allDates).sort()
 
-  return NextResponse.json(chartData, {
-    headers: { 'Cache-Control': 'no-store' },
+  // First valid value per asset (normalization base)
+  const bases = KEYS.map((_, i) => {
+    const m = maps[i]
+    if (!m) return null
+    for (const d of dates) {
+      const v = m.get(d)
+      if (v != null) return v
+    }
+    return null
   })
+
+  const chartData = dates.map((d) => {
+    const row: Record<string, number> = { time: new Date(d).getTime() }
+    KEYS.forEach((key, i) => {
+      const m = maps[i]
+      const base = bases[i]
+      if (!m || base == null) return
+      const v = m.get(d)
+      if (v != null) row[key] = ((v - base) / base) * 100
+    })
+    return row
+  })
+
+  return NextResponse.json(chartData, { headers: { 'Cache-Control': 'no-store' } })
 }
