@@ -28,7 +28,7 @@ export default function CorrelationMatrix({ keys, matrix, selectedKey, onSelectK
   const cols = `minmax(2.5rem, auto) repeat(${keys.length}, minmax(0, 1fr))`
 
   return (
-    <div>
+    <div className="flex flex-col h-full">
       <div className="grid gap-1" style={{ gridTemplateColumns: cols }}>
         {/* Header row */}
         <div />
@@ -68,7 +68,7 @@ export default function CorrelationMatrix({ keys, matrix, selectedKey, onSelectK
         ))}
       </div>
 
-      <div className="mt-4 rounded-lg bg-gray-800/50 border border-gray-700/50 p-3 text-[11px] text-gray-400 space-y-1 leading-relaxed">
+      <div className="mt-auto rounded-lg bg-gray-800/50 border border-gray-700/50 p-3 text-[11px] text-gray-400 space-y-1 leading-relaxed">
         <p>
           <span className="text-blue-400 font-medium">蓝色</span> = 同涨同跌 &nbsp;
           <span className="text-red-400 font-medium">红色</span> = 反向运动 &nbsp;

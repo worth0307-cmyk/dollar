@@ -29,12 +29,13 @@ function fmtEventDate(s: string) {
   return `${y}.${m}.${dd}`
 }
 
+// Find the macro event closest in time to a move (within ~60 days).
 function nearestEvent(ts: number, events: MacroEvent[]): MacroEvent | null {
   let best: MacroEvent | null = null
   let bestDiff = Infinity
   for (const e of events) {
     const diff = Math.abs(new Date(e.date).getTime() - ts)
-    if (diff / 86400000 <= 21 && diff < bestDiff) {
+    if (diff / 86400000 <= 60 && diff < bestDiff) {
       bestDiff = diff
       best = e
     }
@@ -58,7 +59,7 @@ export default function NotableMoves({
   }
 
   return (
-    <div className="space-y-1">
+    <div className="flex-1 overflow-y-auto space-y-1" style={{ maxHeight: '320px' }}>
       {moves.map((m, i) => {
         const meta = ASSET_BY_KEY[m.key]
         const up = m.changePct >= 0
@@ -67,20 +68,18 @@ export default function NotableMoves({
         return (
           <div
             key={`${m.key}-${m.time}-${i}`}
-            className="flex items-start gap-3 py-1.5 px-2 rounded-md hover:bg-gray-800/60 transition-colors"
+            className="py-1.5 px-2 rounded-md hover:bg-gray-800/60 transition-colors"
           >
-            {/* Left: move data */}
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className="font-mono text-[11px] text-slate-400 shrink-0 w-[5rem]">
+            {/* Line 1: the move itself */}
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[11px] text-slate-400 shrink-0">
                 {fmtDate(m.time)}
               </span>
               <span
                 className="w-2 h-2 rounded-full shrink-0"
                 style={{ backgroundColor: meta?.color }}
               />
-              <span className="text-[11px] text-slate-300 w-[3.5rem] truncate shrink-0">
-                {meta?.symbol}
-              </span>
+              <span className="text-[11px] text-slate-300 truncate">{meta?.symbol}</span>
               <span
                 className={`font-mono font-medium text-[11px] shrink-0 ${up ? 'text-emerald-400' : 'text-red-400'}`}
               >
@@ -92,30 +91,24 @@ export default function NotableMoves({
               </span>
             </div>
 
-            {/* Right: nearest macro event */}
-            <div className="w-44 shrink-0">
-              {near ? (
-                <div
-                  className="rounded px-2 py-1 text-[10px] leading-snug border"
-                  style={{
-                    backgroundColor: `${IMPACT_COLOR[near.impact]}10`,
-                    borderColor: `${IMPACT_COLOR[near.impact]}30`,
-                  }}
+            {/* Line 2: the related macro event (indented under the date) */}
+            {near && (
+              <div className="flex items-center gap-1.5 mt-1 pl-1">
+                <span
+                  className="w-1 h-1 rounded-full shrink-0"
+                  style={{ backgroundColor: IMPACT_COLOR[near.impact] }}
+                />
+                <span
+                  className="font-mono text-[10px] shrink-0"
+                  style={{ color: IMPACT_COLOR[near.impact] }}
                 >
-                  <span
-                    className="font-mono block mb-0.5"
-                    style={{ color: IMPACT_COLOR[near.impact] }}
-                  >
-                    {fmtEventDate(near.date)}
-                  </span>
-                  <span className="text-slate-300 leading-tight line-clamp-2" title={near.title}>
-                    {near.title}
-                  </span>
-                </div>
-              ) : (
-                <span className="text-[10px] text-slate-700">—</span>
-              )}
-            </div>
+                  {fmtEventDate(near.date)}
+                </span>
+                <span className="text-[10px] text-slate-400 truncate" title={near.title}>
+                  {near.title}
+                </span>
+              </div>
+            )}
           </div>
         )
       })}

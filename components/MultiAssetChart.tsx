@@ -139,7 +139,7 @@ export default function MultiAssetChart({
   }
 
   return (
-    <div className="chart-glow">
+    <div className="chart-glow flex flex-col h-full">
       {/* Anchor toggle */}
       <div className="flex items-center gap-2 mb-3">
         <span className="text-[10px] text-gray-500">基准：</span>
@@ -163,8 +163,8 @@ export default function MultiAssetChart({
         ))}
       </div>
 
-      {/* Chart — grows taller on wider screens */}
-      <div className="h-[300px] md:h-[360px] xl:h-[420px]">
+      {/* Chart — fills remaining card height so it stays level with Correlation */}
+      <div className="flex-1 min-h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 10, right: 16, bottom: 4, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />

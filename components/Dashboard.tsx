@@ -162,10 +162,10 @@ export default function Dashboard() {
             ))}
       </div>
 
-      {/* ── Chart + Correlation ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4 items-start">
+      {/* ── Chart + Correlation (equal height, stretch) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4 items-stretch">
         {/* Chart (2/3 width) */}
-        <div className="lg:col-span-2 rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm">
+        <div className="lg:col-span-2 rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
           <div className="flex items-center justify-between mb-1">
             <div>
               <h2 className="text-sm font-semibold text-gray-100">Performance</h2>
@@ -191,18 +191,20 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <MultiAssetChart
-            data={series}
-            range={range}
-            loading={historyLoading}
-            stats={stats}
-            moves={moves}
-            market={market}
-            anchor={anchor}
-            onAnchorChange={setAnchor}
-            selectedKey={selectedAsset}
-            onSelectKey={toggleAsset}
-          />
+          <div className="flex-1 min-h-0 flex flex-col">
+            <MultiAssetChart
+              data={series}
+              range={range}
+              loading={historyLoading}
+              stats={stats}
+              moves={moves}
+              market={market}
+              anchor={anchor}
+              onAnchorChange={setAnchor}
+              selectedKey={selectedAsset}
+              onSelectKey={toggleAsset}
+            />
+          </div>
 
           <div className="mt-3 flex items-center gap-4 text-[10px] text-gray-500 font-mono">
             {avgChange != null && (
@@ -219,11 +221,11 @@ export default function Dashboard() {
         </div>
 
         {/* Correlation (1/3 width) */}
-        <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm">
+        <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
           <h2 className="text-sm font-semibold text-gray-100 mb-0.5">Correlation</h2>
           <p className="text-[10px] text-gray-500 mb-4">周期内资产联动关系</p>
           {historyLoading ? (
-            <div className="h-48 flex items-center justify-center text-gray-600 text-sm live-dot">
+            <div className="flex-1 flex items-center justify-center text-gray-600 text-sm live-dot">
               Computing…
             </div>
           ) : (
@@ -237,12 +239,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Notable Moves + Macro Events (side by side) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm">
+      {/* ── Notable Moves + Macro Events (side by side, 2:3 split) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4 items-stretch">
+        <div className="lg:col-span-2 rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
           <div className="flex items-baseline justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-100">Notable Moves</h2>
-            <span className="text-[10px] text-gray-500">单日涨跌幅超过 2σ 的异动</span>
+            <span className="text-[10px] text-gray-500">单日 &gt; 2σ 异动</span>
           </div>
           {historyLoading ? (
             <div className="h-16 flex items-center justify-center text-gray-500 text-sm live-dot">
@@ -253,7 +255,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm">
+        <div className="lg:col-span-3 rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
           <div className="flex items-baseline justify-between mb-1">
             <h2 className="text-sm font-semibold text-gray-100">Macro Events</h2>
             <span className="text-[10px] text-gray-500">重大宏观事件与日程</span>

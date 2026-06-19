@@ -36,39 +36,42 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
         <div className="w-px flex-1 bg-gray-800 mt-1" />
       </div>
 
-      {/* Content */}
+      {/* Content — title on the left, expanded detail fills the space to its right */}
       <div className="pb-4 flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
+        <div className="flex items-start gap-3">
+          {/* Title block (fixed-ish width so the detail sits to its right) */}
+          <div className="min-w-0 w-44 shrink-0">
             <span className="text-[10px] font-mono text-slate-400 block">{fmtDate(event.date)}</span>
             <span className="text-xs font-medium text-gray-200 group-hover:text-white transition-colors">
               {event.title}
             </span>
           </div>
-          <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${IMPACT_STYLE[event.impact]}`}>
+
+          {/* Expanded detail — appears in the empty area to the right of the title */}
+          {open && (
+            <div className="flex-1 min-w-0 animate-fade-up">
+              <p className="text-[11px] text-gray-400 leading-relaxed">{event.description}</p>
+              <div className="mt-1.5 flex gap-1 flex-wrap">
+                {event.assets.map((k) => (
+                  <span
+                    key={k}
+                    className="text-[10px] px-1.5 py-0.5 rounded font-mono"
+                    style={{
+                      backgroundColor: `${ASSET_BY_KEY[k]?.color ?? '#888'}18`,
+                      color: ASSET_BY_KEY[k]?.color ?? '#888',
+                    }}
+                  >
+                    {ASSET_BY_KEY[k]?.symbol ?? k}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ml-auto ${IMPACT_STYLE[event.impact]}`}>
             {IMPACT_LABEL[event.impact]}
           </span>
         </div>
-
-        {open && (
-          <div className="mt-1.5 animate-fade-up">
-            <p className="text-xs text-gray-400 leading-relaxed">{event.description}</p>
-            <div className="mt-1.5 flex gap-1 flex-wrap">
-              {event.assets.map((k) => (
-                <span
-                  key={k}
-                  className="text-[10px] px-1.5 py-0.5 rounded font-mono"
-                  style={{
-                    backgroundColor: `${ASSET_BY_KEY[k]?.color ?? '#888'}18`,
-                    color: ASSET_BY_KEY[k]?.color ?? '#888',
-                  }}
-                >
-                  {ASSET_BY_KEY[k]?.symbol ?? k}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
@@ -85,7 +88,7 @@ export default function MacroEvents({ past, upcoming }: Props) {
   const events = tab === 'past' ? past : upcoming
 
   return (
-    <div>
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Tab bar */}
       <div className="flex gap-1 mb-3 border-b border-gray-800 pb-2.5">
         {(['upcoming', 'past'] as const).map((t) => (
@@ -109,8 +112,8 @@ export default function MacroEvents({ past, upcoming }: Props) {
         </span>
       </div>
 
-      {/* Fixed-height scrollable list */}
-      <div className="overflow-y-auto" style={{ maxHeight: '260px' }}>
+      {/* Scrollable list — fills the card, scrolls when content overflows */}
+      <div className="flex-1 min-h-0 overflow-y-auto" style={{ maxHeight: '320px' }}>
         {events.length === 0 ? (
           <div className="text-xs text-gray-600 py-4 text-center">暂无数据</div>
         ) : (
