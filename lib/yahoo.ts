@@ -19,6 +19,7 @@ async function getSession(): Promise<Session> {
   const r1 = await fetch('https://fc.yahoo.com/', {
     headers: { 'User-Agent': UA, Accept: 'text/html' },
     redirect: 'follow',
+    signal: AbortSignal.timeout(20_000),
   })
   const rawCookies: string[] =
     typeof (r1.headers as any).getSetCookie === 'function'
@@ -29,6 +30,7 @@ async function getSession(): Promise<Session> {
   // Step 2: get crumb using that cookie
   const r2 = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
     headers: { 'User-Agent': UA, Cookie: cookie },
+    signal: AbortSignal.timeout(20_000),
   })
   if (!r2.ok) throw new Error(`Crumb fetch failed: ${r2.status}`)
   const crumb = await r2.text()
@@ -43,11 +45,31 @@ function invalidate() {
 }
 
 const INTERVAL: Record<string, string> = {
-  '1d': '5m',
-  '5d': '60m',
+  '5d': '1d',
   '1mo': '1d',
   '3mo': '1d',
   '1y': '1wk',
+}
+
+const KEY_TO_SYMBOL: Record<string, string> = {
+  dxy: 'DX-Y.NYB',
+  gold: 'GC=F',
+  brent: 'BZ=F',
+  sp500: '^GSPC',
+  btc: 'BTC-USD',
+}
+
+export async function fetchYahooQuote(key: string) {
+  const sym = KEY_TO_SYMBOL[key]
+  if (!sym) throw new Error(`Unknown key: ${key}`)
+  const { price, change, changePercent } = await fetchQuote(sym)
+  return { price, change, changePercent }
+}
+
+export async function fetchYahooHistory(key: string, range: string) {
+  const sym = KEY_TO_SYMBOL[key]
+  if (!sym) throw new Error(`Unknown key: ${key}`)
+  return fetchHistory(sym, range)
 }
 
 export async function fetchQuote(symbol: string) {

@@ -1,16 +1,11 @@
 import { NextResponse } from 'next/server'
-import { fetchStooqHistory } from '@/lib/stooq'
-import { fetchBtcHistory } from '@/lib/coingecko'
+import { fetchYahooHistory } from '@/lib/yahoo'
 import { cacheGet, cacheSet } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
 
 const KEYS = ['dxy', 'btc', 'brent', 'gold', 'sp500']
-const TTL = 5 * 60_000 // 5 minutes for history
-
-async function fetchHistory(key: string, range: string) {
-  return key === 'btc' ? fetchBtcHistory(range) : fetchStooqHistory(key, range)
-}
+const TTL = 5 * 60_000
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -20,7 +15,7 @@ export async function GET(request: Request) {
   const hit = cacheGet<Record<string, number>[]>(cacheKey)
   if (hit) return NextResponse.json(hit, { headers: { 'X-Cache': 'HIT' } })
 
-  const results = await Promise.allSettled(KEYS.map((k) => fetchHistory(k, range)))
+  const results = await Promise.allSettled(KEYS.map((k) => fetchYahooHistory(k, range)))
 
   type DMap = Map<string, number>
   const maps: (DMap | null)[] = results.map((r) => {
