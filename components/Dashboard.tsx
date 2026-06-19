@@ -45,7 +45,7 @@ function riskSentiment(market: MarketAsset[] | undefined) {
 
 export default function Dashboard() {
   const [range, setRange]           = useState('1mo')
-  const [anchor, setAnchor]         = useState<'period' | 'ytd'>('period')
+  const [anchor, setAnchor]         = useState<'period' | 'ytd'>('ytd')
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null)
 

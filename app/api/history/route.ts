@@ -98,7 +98,10 @@ export async function GET(request: Request) {
       const base = bases[i]
       if (!m || base == null) return
       const v = m.get(d)
-      if (v != null) row[key] = ((v - base) / base) * 100
+      if (v != null) {
+        row[key] = ((v - base) / base) * 100
+        row[`${key}__p`] = v  // raw price for tooltip display
+      }
     })
     return row
   })

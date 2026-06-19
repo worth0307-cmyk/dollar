@@ -42,9 +42,10 @@ function fmtPrice(price: number | null | undefined, key: string) {
   }).format(price)}${meta?.suffix ?? ''}`
 }
 
-function CustomTooltip({ active, payload, label, market }: any) {
+function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
-  const priceMap = new Map((market ?? []).map((a: MarketAsset) => [a.key, a]))
+  // Row data contains both `key` (% change) and `key__p` (raw price on that date)
+  const rowData: Record<string, number> = payload[0]?.payload ?? {}
 
   return (
     <div className="bg-gray-900/95 border border-gray-600/60 rounded-xl p-3.5 shadow-2xl text-xs backdrop-blur-sm">
@@ -54,7 +55,7 @@ function CustomTooltip({ active, payload, label, market }: any) {
         .sort((a: any, b: any) => b.value - a.value)
         .map((p: any) => {
           const meta = ASSET_BY_KEY[p.dataKey]
-          const asset = priceMap.get(p.dataKey) as MarketAsset | undefined
+          const historicalPrice = rowData[`${p.dataKey}__p`]
           return (
             <div key={p.dataKey} className="flex items-center gap-2.5 py-0.5">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
@@ -66,9 +67,9 @@ function CustomTooltip({ active, payload, label, market }: any) {
                 {p.value >= 0 ? '+' : ''}
                 {p.value.toFixed(2)}%
               </span>
-              {asset?.price != null && (
+              {historicalPrice != null && (
                 <span className="font-mono text-[10px] ml-1" style={{ color: `${p.color}cc` }}>
-                  {fmtPrice(asset.price, p.dataKey)}
+                  {fmtPrice(historicalPrice, p.dataKey)}
                 </span>
               )}
             </div>
@@ -186,7 +187,7 @@ export default function MultiAssetChart({
               axisLine={false}
               width={50}
             />
-            <Tooltip content={<CustomTooltip market={market} />} />
+            <Tooltip content={<CustomTooltip />} />
             <ReferenceLine y={0} stroke="#334155" strokeDasharray="4 4" label={{ value: `${anchorLabel} 基准`, position: 'insideTopLeft', fill: '#475569', fontSize: 10 }} />
 
             {ASSETS.map((a) => {

@@ -18,13 +18,9 @@ const IMPACT_STYLE: Record<string, string> = {
 const IMPACT_LABEL: Record<string, string> = { high: '重大', medium: '中等', low: '次要' }
 
 function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: boolean }) {
-  const [open, setOpen] = useState(false)
   return (
-    <div
-      className="flex gap-3 cursor-pointer group"
-      onClick={() => setOpen((v) => !v)}
-    >
-      {/* Timeline line */}
+    <div className="flex gap-3">
+      {/* Timeline dot */}
       <div className="flex flex-col items-center pt-1 shrink-0">
         <div
           className={`w-2.5 h-2.5 rounded-full border-2 mt-0.5 ${
@@ -36,39 +32,36 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
         <div className="w-px flex-1 bg-gray-800 mt-1" />
       </div>
 
-      {/* Content — title on the left, expanded detail fills the space to its right */}
+      {/* Content row: [title block] [detail] [badge] */}
       <div className="pb-4 flex-1 min-w-0">
         <div className="flex items-start gap-3">
-          {/* Title block (fixed-ish width so the detail sits to its right) */}
-          <div className="min-w-0 w-44 shrink-0">
-            <span className="text-[10px] font-mono text-slate-400 block">{fmtDate(event.date)}</span>
-            <span className="text-xs font-medium text-gray-200 group-hover:text-white transition-colors">
-              {event.title}
-            </span>
+          {/* Title block — fixed width so detail sits to its right */}
+          <div className="w-40 shrink-0">
+            <span className="text-[10px] font-mono text-slate-300 block">{fmtDate(event.date)}</span>
+            <span className="text-xs font-medium text-gray-100">{event.title}</span>
           </div>
 
-          {/* Expanded detail — appears in the empty area to the right of the title */}
-          {open && (
-            <div className="flex-1 min-w-0 animate-fade-up">
-              <p className="text-[11px] text-gray-400 leading-relaxed">{event.description}</p>
-              <div className="mt-1.5 flex gap-1 flex-wrap">
-                {event.assets.map((k) => (
-                  <span
-                    key={k}
-                    className="text-[10px] px-1.5 py-0.5 rounded font-mono"
-                    style={{
-                      backgroundColor: `${ASSET_BY_KEY[k]?.color ?? '#888'}18`,
-                      color: ASSET_BY_KEY[k]?.color ?? '#888',
-                    }}
-                  >
-                    {ASSET_BY_KEY[k]?.symbol ?? k}
-                  </span>
-                ))}
-              </div>
+          {/* Detail — always visible, fills available width */}
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] text-gray-100 leading-relaxed">{event.description}</p>
+            <div className="mt-1.5 flex gap-1 flex-wrap">
+              {event.assets.map((k) => (
+                <span
+                  key={k}
+                  className="text-[10px] px-1.5 py-0.5 rounded font-mono"
+                  style={{
+                    backgroundColor: `${ASSET_BY_KEY[k]?.color ?? '#888'}18`,
+                    color: ASSET_BY_KEY[k]?.color ?? '#888',
+                  }}
+                >
+                  {ASSET_BY_KEY[k]?.symbol ?? k}
+                </span>
+              ))}
             </div>
-          )}
+          </div>
 
-          <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ml-auto ${IMPACT_STYLE[event.impact]}`}>
+          {/* Impact badge — mr-1 keeps it clear of the scrollbar */}
+          <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium mr-1 ${IMPACT_STYLE[event.impact]}`}>
             {IMPACT_LABEL[event.impact]}
           </span>
         </div>
@@ -107,13 +100,10 @@ export default function MacroEvents({ past, upcoming }: Props) {
             </span>
           </button>
         ))}
-        <span className="ml-auto text-[10px] text-gray-500 self-center">
-          点击展开详情
-        </span>
       </div>
 
-      {/* Scrollable list — fills the card, scrolls when content overflows */}
-      <div className="flex-1 min-h-0 overflow-y-auto" style={{ maxHeight: '320px' }}>
+      {/* Scrollable list — pr-3 keeps badge clear of scrollbar */}
+      <div className="flex-1 min-h-0 overflow-y-auto pr-3" style={{ maxHeight: '320px' }}>
         {events.length === 0 ? (
           <div className="text-xs text-gray-600 py-4 text-center">暂无数据</div>
         ) : (
