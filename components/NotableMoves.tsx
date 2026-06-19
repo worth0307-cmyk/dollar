@@ -55,7 +55,7 @@ export default function NotableMoves({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto space-y-0.5" style={{ maxHeight: '320px' }}>
+    <div className="flex-1 min-h-0 overflow-y-auto space-y-0.5">
       {moves.map((m, i) => {
         const meta = ASSET_BY_KEY[m.key]
         const up = m.changePct >= 0
