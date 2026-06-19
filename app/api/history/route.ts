@@ -1,33 +1,43 @@
 import { NextResponse } from 'next/server'
 import { fetchYahooHistory } from '@/lib/yahoo'
 import { cacheGet, cacheSet } from '@/lib/cache'
+import {
+  correlationMatrix,
+  notableMoves,
+  periodStats,
+  type PriceMap,
+} from '@/lib/analytics'
 
 export const dynamic = 'force-dynamic'
 
 const KEYS = ['dxy', 'btc', 'brent', 'gold', 'sp500']
 const TTL = 5 * 60_000
 
+interface HistoryPayload {
+  series: Record<string, number>[]
+  correlation: { keys: string[]; matrix: (number | null)[][] }
+  moves: ReturnType<typeof notableMoves>
+  stats: ReturnType<typeof periodStats>
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const range = searchParams.get('range') ?? '1mo'
   const cacheKey = `history:${range}`
 
-  const hit = cacheGet<Record<string, number>[]>(cacheKey)
+  const hit = cacheGet<HistoryPayload>(cacheKey)
   if (hit) return NextResponse.json(hit, { headers: { 'X-Cache': 'HIT' } })
 
   const results = await Promise.allSettled(KEYS.map((k) => fetchYahooHistory(k, range)))
 
-  type DMap = Map<string, number>
-  const maps: (DMap | null)[] = results.map((r) => {
+  // Raw price per asset keyed by date — feeds both the chart and the analytics.
+  const maps: (PriceMap | null)[] = results.map((r) => {
     if (r.status !== 'fulfilled') return null
     const { timestamps, closes } = r.value
-    const m = new Map<string, number>()
+    const m: PriceMap = new Map()
     timestamps.forEach((ts, i) => {
       const c = closes[i]
-      if (c != null) {
-        const d = new Date(ts * 1000).toISOString().slice(0, 10)
-        m.set(d, c)
-      }
+      if (c != null) m.set(new Date(ts * 1000).toISOString().slice(0, 10), c)
     })
     return m
   })
@@ -36,6 +46,7 @@ export async function GET(request: Request) {
   maps.forEach((m) => m?.forEach((_, d) => allDates.add(d)))
   const dates = Array.from(allDates).sort()
 
+  // Baseline = first available price per asset, for % normalization.
   const bases = KEYS.map((_, i) => {
     const m = maps[i]
     if (!m) return null
@@ -46,7 +57,7 @@ export async function GET(request: Request) {
     return null
   })
 
-  const chartData = dates.map((d) => {
+  const series = dates.map((d) => {
     const row: Record<string, number> = { time: new Date(d).getTime() }
     KEYS.forEach((key, i) => {
       const m = maps[i]
@@ -58,6 +69,16 @@ export async function GET(request: Request) {
     return row
   })
 
-  cacheSet(cacheKey, chartData, TTL)
-  return NextResponse.json(chartData, { headers: { 'Cache-Control': 'no-store', 'X-Cache': 'MISS' } })
+  const payload: HistoryPayload = {
+    series,
+    correlation: { keys: KEYS, matrix: correlationMatrix(KEYS, maps) },
+    moves: notableMoves(KEYS, maps),
+    stats: periodStats(KEYS, maps),
+  }
+
+  // Only cache a payload that actually carries data.
+  if (series.length) cacheSet(cacheKey, payload, TTL)
+  return NextResponse.json(payload, {
+    headers: { 'Cache-Control': 'no-store', 'X-Cache': 'MISS' },
+  })
 }
