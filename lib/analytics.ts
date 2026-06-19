@@ -67,7 +67,7 @@ export interface Move {
 export function notableMoves(
   keys: string[],
   maps: (PriceMap | null)[],
-  topN = 8,
+  topN = 20,
   zThreshold = 2
 ): Move[] {
   const moves: Move[] = []
@@ -87,7 +87,7 @@ export function notableMoves(
       }
     })
   })
-  return moves.sort((a, b) => Math.abs(b.z) - Math.abs(a.z)).slice(0, topN)
+  return moves.sort((a, b) => b.time - a.time).slice(0, topN)
 }
 
 export interface AssetStat {

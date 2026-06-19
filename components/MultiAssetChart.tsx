@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
@@ -167,7 +167,7 @@ export default function MultiAssetChart({
       {/* Chart — fills remaining card height so it stays level with Correlation */}
       <div className="flex-1 min-h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 10, right: 16, bottom: 4, left: 0 }}>
+          <AreaChart data={data} margin={{ top: 10, right: 16, bottom: 4, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
             <XAxis
               dataKey="time"
@@ -181,11 +181,10 @@ export default function MultiAssetChart({
               minTickGap={50}
             />
             <YAxis
-              tickFormatter={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(0)}%`}
-              tick={{ fill: '#475569', fontSize: 11 }}
+              tick={false}
               tickLine={false}
               axisLine={false}
-              width={50}
+              width={8}
             />
             <Tooltip content={<CustomTooltip />} />
             <ReferenceLine y={0} stroke="#334155" strokeDasharray="4 4" label={{ value: `${anchorLabel} 基准`, position: 'insideTopLeft', fill: '#475569', fontSize: 10 }} />
@@ -194,13 +193,15 @@ export default function MultiAssetChart({
               const isSelected = selectedKey === a.key
               const isDimmed = selectedKey != null && !isSelected
               return (
-                <Line
+                <Area
                   key={a.key}
                   type="monotone"
                   dataKey={a.key}
                   stroke={a.color}
-                  strokeWidth={isSelected ? 3.75 : 2.5}
+                  strokeWidth={isSelected ? 2 : 1.5}
                   strokeOpacity={isDimmed ? 0.12 : 1}
+                  fill={a.color}
+                  fillOpacity={isDimmed ? 0 : 0.04}
                   dot={false}
                   activeDot={{ r: isSelected ? 5 : 4, strokeWidth: 0, fillOpacity: 0.9 }}
                   connectNulls
@@ -229,7 +230,7 @@ export default function MultiAssetChart({
                 />
               )
             })}
-          </LineChart>
+          </AreaChart>
         </ResponsiveContainer>
       </div>
 
