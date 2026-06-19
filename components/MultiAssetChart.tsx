@@ -58,7 +58,7 @@ function CustomTooltip({ active, payload, label, market }: any) {
           return (
             <div key={p.dataKey} className="flex items-center gap-2.5 py-0.5">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-              <span className="text-gray-300 w-14 shrink-0">{meta?.symbol}</span>
+              <span className="text-gray-200 w-14 shrink-0">{meta?.symbol}</span>
               <span
                 className="font-mono w-16 text-right"
                 style={{ color: p.value >= 0 ? '#34D399' : '#EF4444' }}
@@ -67,7 +67,7 @@ function CustomTooltip({ active, payload, label, market }: any) {
                 {p.value.toFixed(2)}%
               </span>
               {asset?.price != null && (
-                <span className="font-mono text-gray-500 text-[10px] ml-1">
+                <span className="font-mono text-[10px] ml-1" style={{ color: `${p.color}cc` }}>
                   {fmtPrice(asset.price, p.dataKey)}
                 </span>
               )}
@@ -121,7 +121,7 @@ export default function MultiAssetChart({
 
   if (loading) {
     return (
-      <div className="w-full h-[340px] flex items-center justify-center text-gray-600 text-sm">
+      <div className="w-full h-[340px] flex items-center justify-center text-gray-500 text-sm">
         <span className="live-dot">加载中…</span>
       </div>
     )
@@ -129,7 +129,7 @@ export default function MultiAssetChart({
 
   if (!data?.length) {
     return (
-      <div className="w-full h-[340px] flex items-center justify-center text-gray-600 text-sm">
+      <div className="w-full h-[340px] flex items-center justify-center text-gray-500 text-sm">
         暂无数据
       </div>
     )
@@ -139,7 +139,7 @@ export default function MultiAssetChart({
     <div className="chart-glow">
       {/* Anchor toggle */}
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-[10px] text-gray-600">基准：</span>
+        <span className="text-[10px] text-gray-500">基准：</span>
         {(['period', 'ytd'] as const).map((a) => (
           <button
             key={a}
@@ -147,7 +147,7 @@ export default function MultiAssetChart({
             className={`text-[10px] px-2 py-0.5 rounded font-mono transition-colors ${
               anchor === a
                 ? 'bg-indigo-500/25 text-indigo-300 border border-indigo-500/40'
-                : 'text-gray-600 hover:text-gray-400 border border-transparent'
+                : 'text-gray-500 hover:text-gray-300 border border-transparent'
             }`}
             title={
               a === 'period'
@@ -243,7 +243,7 @@ export default function MultiAssetChart({
                   boxShadow: isHidden ? 'none' : `0 0 6px ${a.color}80`,
                 }}
               />
-              <span className="text-gray-300">{a.symbol}</span>
+              <span className="text-gray-200">{a.symbol}</span>
               {chg != null && (
                 <span
                   className="font-mono text-[11px]"

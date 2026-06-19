@@ -53,12 +53,12 @@ export default function CorrelationMatrix({ keys, matrix }: Props) {
           <span className="text-red-400 font-medium">红色</span> = 反向运动 &nbsp;
           颜色越深相关性越强
         </p>
-        <p className="text-gray-500">
-          数值含义：<span className="text-gray-300">±1.0</span> 完全一致 ·{' '}
-          <span className="text-gray-300">±0.5</span> 中度相关 ·{' '}
-          <span className="text-gray-300">0</span> 无关联
+        <p className="text-gray-400">
+          数值含义：<span className="text-gray-200">±1.0</span> 完全一致 ·{' '}
+          <span className="text-gray-200">±0.5</span> 中度相关 ·{' '}
+          <span className="text-gray-200">0</span> 无关联
         </p>
-        <p className="text-gray-600">
+        <p className="text-gray-500">
           基于周期内每日收益率的 Pearson 相关系数 · 悬浮查看解读
         </p>
       </div>
@@ -82,7 +82,7 @@ function Row({
           className="w-2.5 h-2.5 rounded-full shrink-0"
           style={{ backgroundColor: ASSET_BY_KEY[rowKey]?.color }}
         />
-        <span className="text-[11px] text-gray-400 truncate">
+        <span className="text-[11px] text-gray-300 truncate">
           {ASSET_BY_KEY[rowKey]?.symbol}
         </span>
       </div>

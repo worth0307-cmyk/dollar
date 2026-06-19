@@ -5,8 +5,7 @@ import useSWR from 'swr'
 import MultiAssetChart from './MultiAssetChart'
 import PriceCard from './PriceCard'
 import CorrelationMatrix from './CorrelationMatrix'
-import NotableMoves from './NotableMoves'
-import MacroEvents from './MacroEvents'
+import MovesAndEvents from './MovesAndEvents'
 import type { MacroEvent } from '@/lib/events'
 
 const RANGES = [
@@ -95,7 +94,7 @@ export default function Dashboard() {
             <span className="gradient-text">MARKET</span>
             <span className="text-gray-200 ml-2 font-light">DASHBOARD</span>
           </h1>
-          <p className="text-xs text-gray-600 mt-0.5 font-mono tracking-widest">
+          <p className="text-xs text-gray-500 mt-0.5 font-mono tracking-widest">
             DXY · BTC · BRENT · GOLD · S&amp;P500
           </p>
         </div>
@@ -104,7 +103,7 @@ export default function Dashboard() {
           {/* Live dot */}
           <div className="flex items-center gap-2 text-xs">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot" />
-            <span className="text-gray-600 font-mono">LIVE</span>
+            <span className="text-gray-500 font-mono">LIVE</span>
           </div>
 
           {/* Risk sentiment */}
@@ -117,7 +116,7 @@ export default function Dashboard() {
                 boxShadow: `0 0 12px ${risk.color}20`,
               }}
             >
-              <div className="text-[9px] uppercase tracking-widest text-gray-500">Sentiment</div>
+              <div className="text-[9px] uppercase tracking-widest text-gray-400">Sentiment</div>
               <div className="text-sm font-bold mt-0.5" style={{ color: risk.color }}>
                 {risk.label}
               </div>
@@ -128,7 +127,7 @@ export default function Dashboard() {
           <div className="text-right">
             <div className="font-mono text-xl text-gray-200 tracking-widest">{now}</div>
             {lastUpdated && (
-              <div className="text-[10px] text-gray-600 font-mono">
+              <div className="text-[10px] text-gray-500 font-mono">
                 updated {lastUpdated.toLocaleTimeString('zh-CN', { hour12: false })}
               </div>
             )}
@@ -154,13 +153,13 @@ export default function Dashboard() {
       </div>
 
       {/* ── Chart + Correlation ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4 items-start">
         {/* Chart (2/3 width) */}
         <div className="lg:col-span-2 rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm">
           <div className="flex items-center justify-between mb-1">
             <div>
               <h2 className="text-sm font-semibold text-gray-100">Performance</h2>
-              <p className="text-[10px] text-gray-600">
+              <p className="text-[10px] text-gray-500">
                 归一化涨跌幅 · 点击图例隐藏/显示 · 圆点 = 异常波动日
               </p>
             </div>
@@ -192,7 +191,7 @@ export default function Dashboard() {
             onAnchorChange={setAnchor}
           />
 
-          <div className="mt-3 flex items-center gap-4 text-[10px] text-gray-600 font-mono">
+          <div className="mt-3 flex items-center gap-4 text-[10px] text-gray-500 font-mono">
             {avgChange != null && (
               <span>
                 Avg 24h{' '}
@@ -209,7 +208,7 @@ export default function Dashboard() {
         {/* Correlation (1/3 width) */}
         <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm">
           <h2 className="text-sm font-semibold text-gray-100 mb-0.5">Correlation</h2>
-          <p className="text-[10px] text-gray-600 mb-4">周期内资产联动关系</p>
+          <p className="text-[10px] text-gray-500 mb-4">周期内资产联动关系</p>
           {historyLoading ? (
             <div className="h-48 flex items-center justify-center text-gray-600 text-sm live-dot">
               Computing…
@@ -220,36 +219,27 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Notable Moves + Events (side by side on lg) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm">
-          <div className="flex items-baseline justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-100">Notable Moves</h2>
-            <span className="text-[10px] text-gray-600">单日涨跌幅超过 2σ 的异动</span>
-          </div>
-          {historyLoading ? (
-            <div className="h-16 flex items-center justify-center text-gray-600 text-sm live-dot">
-              Analyzing…
-            </div>
-          ) : (
-            <NotableMoves moves={moves} />
-          )}
+      {/* ── Moves & Events (merged) ── */}
+      <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm mb-4">
+        <div className="flex items-baseline justify-between mb-1">
+          <h2 className="text-sm font-semibold text-gray-100">市场异动 &amp; 宏观事件</h2>
+          <span className="text-[10px] text-gray-500">异常波动与宏观日历</span>
         </div>
-
-        <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm">
-          <div className="flex items-baseline justify-between mb-1">
-            <h2 className="text-sm font-semibold text-gray-100">Macro Events</h2>
-            <span className="text-[10px] text-gray-600">重大宏观事件与日程</span>
+        {historyLoading ? (
+          <div className="h-16 flex items-center justify-center text-gray-500 text-sm live-dot">
+            Analyzing…
           </div>
-          <MacroEvents
+        ) : (
+          <MovesAndEvents
+            moves={moves}
             past={eventsData?.past ?? []}
             upcoming={eventsData?.upcoming ?? []}
           />
-        </div>
+        )}
       </div>
 
       {/* ── Footer ── */}
-      <div className="text-center text-[10px] text-gray-700 font-mono tracking-wide pb-2">
+      <div className="text-center text-[10px] text-gray-500 font-mono tracking-wide pb-2">
         价格每 30s 刷新 · 历史每 60s 刷新 · Yahoo Finance ≈ 15min 延迟
       </div>
     </div>
