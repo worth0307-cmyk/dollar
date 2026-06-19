@@ -6,6 +6,8 @@ import MultiAssetChart from './MultiAssetChart'
 import PriceCard from './PriceCard'
 import CorrelationMatrix from './CorrelationMatrix'
 import NotableMoves from './NotableMoves'
+import MacroEvents from './MacroEvents'
+import type { MacroEvent } from '@/lib/events'
 
 const RANGES = [
   { label: '1W', value: '5d' },
@@ -26,25 +28,24 @@ interface MarketAsset {
   error?: boolean
 }
 
-// Risk appetite read: stocks + crypto up and the dollar down = risk-on.
+// Risk-On / Risk-Off: stocks & crypto up + dollar down = risk appetite
 function riskSentiment(market: MarketAsset[] | undefined) {
   if (!Array.isArray(market)) return null
   const chg = (k: string) => market.find((a) => a.key === k)?.changePercent ?? null
-  const sp = chg('sp500')
-  const btc = chg('btc')
-  const dxy = chg('dxy')
+  const sp = chg('sp500'), btc = chg('btc'), dxy = chg('dxy')
   if (sp == null && btc == null) return null
   let score = 0
-  if (sp != null) score += sp >= 0 ? 1 : -1
+  if (sp != null)  score += sp  >= 0 ? 1 : -1
   if (btc != null) score += btc >= 0 ? 1 : -1
   if (dxy != null) score += dxy < 0 ? 1 : -1
-  if (score >= 2) return { label: 'Risk-On', color: '#34D399' }
-  if (score <= -2) return { label: 'Risk-Off', color: '#EF4444' }
-  return { label: 'Mixed', color: '#9CA3AF' }
+  if (score >= 2)  return { label: 'Risk-On',  color: '#34D399', bg: 'rgba(52,211,153,0.12)' }
+  if (score <= -2) return { label: 'Risk-Off', color: '#EF4444', bg: 'rgba(239,68,68,0.12)' }
+  return            { label: 'Mixed',    color: '#94A3B8', bg: 'rgba(148,163,184,0.10)' }
 }
 
 export default function Dashboard() {
-  const [range, setRange] = useState('1mo')
+  const [range, setRange]   = useState('1mo')
+  const [anchor, setAnchor] = useState<'period' | 'ytd'>('period')
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   const { data: market, isLoading: marketLoading } = useSWR<MarketAsset[]>(
@@ -54,88 +55,113 @@ export default function Dashboard() {
   )
 
   const { data: history, isLoading: historyLoading } = useSWR(
-    `/api/history?range=${range}`,
+    `/api/history?range=${range}&anchor=${anchor}`,
     fetcher,
     { refreshInterval: 60_000 }
   )
 
-  const series = history?.series ?? []
+  const { data: eventsData } = useSWR<{ past: MacroEvent[]; upcoming: MacroEvent[] }>(
+    '/api/events',
+    fetcher,
+    { revalidateOnFocus: false, refreshInterval: 0 }
+  )
+
+  const series      = history?.series      ?? []
   const correlation = history?.correlation ?? { keys: [], matrix: [] }
-  const moves = history?.moves ?? []
-  const stats = history?.stats ?? {}
+  const moves       = history?.moves       ?? []
+  const stats       = history?.stats       ?? {}
 
   const [now, setNow] = useState('')
   useEffect(() => {
     const tick = () =>
-      setNow(
-        new Date().toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-        })
-      )
+      setNow(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [])
 
   const risk = riskSentiment(market)
+  const avgChange =
+    Array.isArray(market)
+      ? market.reduce((s, a) => s + (a.changePercent ?? 0), 0) / market.length
+      : null
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 p-4 md:p-6 max-w-[1600px] mx-auto w-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="min-h-screen text-gray-100 p-4 md:p-6 max-w-[1600px] mx-auto w-full">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-6 animate-fade-up">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">
-            <span className="text-blue-400">Market</span> Dashboard
+          <h1 className="text-2xl font-bold tracking-tight">
+            <span className="gradient-text">MARKET</span>
+            <span className="text-gray-200 ml-2 font-light">DASHBOARD</span>
           </h1>
-          <p className="text-xs text-gray-500 mt-0.5">
-            DXY · BTC · Brent · Gold · S&amp;P 500
+          <p className="text-xs text-gray-600 mt-0.5 font-mono tracking-widest">
+            DXY · BTC · BRENT · GOLD · S&amp;P500
           </p>
         </div>
-        <div className="flex items-center gap-4">
+
+        <div className="flex items-center gap-5">
+          {/* Live dot */}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot" />
+            <span className="text-gray-600 font-mono">LIVE</span>
+          </div>
+
+          {/* Risk sentiment */}
           {risk && (
-            <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider text-gray-600">
-                Sentiment
-              </div>
-              <div className="text-sm font-semibold" style={{ color: risk.color }}>
+            <div
+              className="px-3 py-1.5 rounded-lg border text-center"
+              style={{
+                backgroundColor: risk.bg,
+                borderColor: `${risk.color}30`,
+                boxShadow: `0 0 12px ${risk.color}20`,
+              }}
+            >
+              <div className="text-[9px] uppercase tracking-widest text-gray-500">Sentiment</div>
+              <div className="text-sm font-bold mt-0.5" style={{ color: risk.color }}>
                 {risk.label}
               </div>
             </div>
           )}
+
+          {/* Clock */}
           <div className="text-right">
-            <div className="font-mono text-lg text-gray-300">{now}</div>
+            <div className="font-mono text-xl text-gray-200 tracking-widest">{now}</div>
             {lastUpdated && (
-              <div className="text-xs text-gray-600">
-                updated {lastUpdated.toLocaleTimeString('en-US', { hour12: false })}
+              <div className="text-[10px] text-gray-600 font-mono">
+                updated {lastUpdated.toLocaleTimeString('zh-CN', { hour12: false })}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Price Cards */}
+      {/* ── Price Cards ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
         {marketLoading
           ? Array.from({ length: 5 }).map((_, i) => (
               <div
                 key={i}
-                className="rounded-xl bg-gray-900 border border-gray-800 h-28 animate-pulse"
+                className="rounded-xl bg-gray-900/60 border border-gray-800 h-28 animate-pulse"
+                style={{ animationDelay: `${i * 80}ms` }}
               />
             ))
-          : market?.map((asset) => <PriceCard key={asset.key} asset={asset} />)}
+          : market?.map((asset, i) => (
+              <div key={asset.key} className="animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
+                <PriceCard asset={asset} />
+              </div>
+            ))}
       </div>
 
-      {/* Main grid: chart (2/3) + correlation (1/3) */}
+      {/* ── Chart + Correlation ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        <div className="lg:col-span-2 rounded-xl bg-gray-900 border border-gray-800 p-4">
-          <div className="flex items-center justify-between mb-2">
+        {/* Chart (2/3 width) */}
+        <div className="lg:col-span-2 rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm">
+          <div className="flex items-center justify-between mb-1">
             <div>
-              <h2 className="text-sm font-semibold text-gray-200">Performance</h2>
-              <p className="text-xs text-gray-500">
-                Normalized to % change from period start · click legend to isolate
+              <h2 className="text-sm font-semibold text-gray-100">Performance</h2>
+              <p className="text-[10px] text-gray-600">
+                归一化涨跌幅 · 点击图例隐藏/显示 · 圆点 = 异常波动日
               </p>
             </div>
             <div className="flex gap-1">
@@ -143,10 +169,10 @@ export default function Dashboard() {
                 <button
                   key={r.value}
                   onClick={() => setRange(r.value)}
-                  className={`px-3 py-1 text-xs rounded-md font-medium transition-colors ${
+                  className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
                     range === r.value
-                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                      : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 shadow-[0_0_8px_rgba(96,165,250,0.3)]'
+                      : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/60'
                   }`}
                 >
                   {r.label}
@@ -154,21 +180,39 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
+
           <MultiAssetChart
             data={series}
             range={range}
             loading={historyLoading}
             stats={stats}
             moves={moves}
+            market={market}
+            anchor={anchor}
+            onAnchorChange={setAnchor}
           />
+
+          <div className="mt-3 flex items-center gap-4 text-[10px] text-gray-600 font-mono">
+            {avgChange != null && (
+              <span>
+                Avg 24h{' '}
+                <span style={{ color: avgChange >= 0 ? '#34D399' : '#EF4444' }}>
+                  {avgChange >= 0 ? '+' : ''}
+                  {avgChange.toFixed(2)}%
+                </span>
+              </span>
+            )}
+            <span className="ml-auto">Data: Yahoo Finance · ~15min delay</span>
+          </div>
         </div>
 
-        <div className="rounded-xl bg-gray-900 border border-gray-800 p-4">
-          <h2 className="text-sm font-semibold text-gray-200 mb-1">Correlation</h2>
-          <p className="text-xs text-gray-500 mb-4">How the assets move relative to each other</p>
+        {/* Correlation (1/3 width) */}
+        <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm">
+          <h2 className="text-sm font-semibold text-gray-100 mb-0.5">Correlation</h2>
+          <p className="text-[10px] text-gray-600 mb-4">周期内资产联动关系</p>
           {historyLoading ? (
-            <div className="h-48 flex items-center justify-center text-gray-600 text-sm">
-              Loading…
+            <div className="h-48 flex items-center justify-center text-gray-600 text-sm live-dot">
+              Computing…
             </div>
           ) : (
             <CorrelationMatrix keys={correlation.keys} matrix={correlation.matrix} />
@@ -176,24 +220,37 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Notable moves */}
-      <div className="rounded-xl bg-gray-900 border border-gray-800 p-4 mb-4">
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-200">Notable Moves</h2>
-          <span className="text-xs text-gray-500">Days an asset moved more than 2σ</span>
-        </div>
-        {historyLoading ? (
-          <div className="h-16 flex items-center justify-center text-gray-600 text-sm">
-            Loading…
+      {/* ── Notable Moves + Events (side by side on lg) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm">
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-100">Notable Moves</h2>
+            <span className="text-[10px] text-gray-600">单日涨跌幅超过 2σ 的异动</span>
           </div>
-        ) : (
-          <NotableMoves moves={moves} />
-        )}
+          {historyLoading ? (
+            <div className="h-16 flex items-center justify-center text-gray-600 text-sm live-dot">
+              Analyzing…
+            </div>
+          ) : (
+            <NotableMoves moves={moves} />
+          )}
+        </div>
+
+        <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm">
+          <div className="flex items-baseline justify-between mb-1">
+            <h2 className="text-sm font-semibold text-gray-100">Macro Events</h2>
+            <span className="text-[10px] text-gray-600">重大宏观事件与日程</span>
+          </div>
+          <MacroEvents
+            past={eventsData?.past ?? []}
+            upcoming={eventsData?.upcoming ?? []}
+          />
+        </div>
       </div>
 
-      {/* Footer */}
-      <div className="text-xs text-gray-600 text-center">
-        Prices refresh every 30s · history every 60s · Data: Yahoo Finance (≈15-min delayed)
+      {/* ── Footer ── */}
+      <div className="text-center text-[10px] text-gray-700 font-mono tracking-wide pb-2">
+        价格每 30s 刷新 · 历史每 60s 刷新 · Yahoo Finance ≈ 15min 延迟
       </div>
     </div>
   )

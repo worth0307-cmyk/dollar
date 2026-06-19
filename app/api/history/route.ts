@@ -12,6 +12,7 @@ export const dynamic = 'force-dynamic'
 
 const KEYS = ['dxy', 'btc', 'brent', 'gold', 'sp500']
 const TTL = 5 * 60_000
+const YTD_BASELINE_TTL = 15 * 60_000
 
 interface HistoryPayload {
   series: Record<string, number>[]
@@ -20,18 +21,10 @@ interface HistoryPayload {
   stats: ReturnType<typeof periodStats>
 }
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const range = searchParams.get('range') ?? '1mo'
-  const cacheKey = `history:${range}`
-
-  const hit = cacheGet<HistoryPayload>(cacheKey)
-  if (hit) return NextResponse.json(hit, { headers: { 'X-Cache': 'HIT' } })
-
-  const results = await Promise.allSettled(KEYS.map((k) => fetchYahooHistory(k, range)))
-
-  // Raw price per asset keyed by date — feeds both the chart and the analytics.
-  const maps: (PriceMap | null)[] = results.map((r) => {
+function buildMaps(
+  results: PromiseSettledResult<{ timestamps: number[]; closes: (number | null)[] }>[]
+): (PriceMap | null)[] {
+  return results.map((r) => {
     if (r.status !== 'fulfilled') return null
     const { timestamps, closes } = r.value
     const m: PriceMap = new Map()
@@ -41,21 +34,62 @@ export async function GET(request: Request) {
     })
     return m
   })
+}
+
+// Fetch year-to-date baseline prices (Jan 1 of current year) — cached separately.
+async function getYtdBases(): Promise<(number | null)[]> {
+  const cacheKey = 'ytd:bases'
+  const hit = cacheGet<(number | null)[]>(cacheKey)
+  if (hit) return hit
+
+  const year = new Date().getFullYear()
+  const ytdStart = `${year}-01-01`
+
+  const results = await Promise.allSettled(KEYS.map((k) => fetchYahooHistory(k, '1y')))
+  const bases = buildMaps(results).map((m) => {
+    if (!m) return null
+    for (const d of [...m.keys()].sort()) {
+      if (d >= ytdStart) return m.get(d)!
+    }
+    return null
+  })
+
+  cacheSet(cacheKey, bases, YTD_BASELINE_TTL)
+  return bases
+}
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const range = searchParams.get('range') ?? '1mo'
+  const anchor = searchParams.get('anchor') ?? 'period' // 'period' | 'ytd'
+  const cacheKey = `history:${range}:${anchor}`
+
+  const hit = cacheGet<HistoryPayload>(cacheKey)
+  if (hit) return NextResponse.json(hit, { headers: { 'X-Cache': 'HIT' } })
+
+  // Fetch price data for the requested display range.
+  const results = await Promise.allSettled(KEYS.map((k) => fetchYahooHistory(k, range)))
+  const maps = buildMaps(results)
 
   const allDates = new Set<string>()
   maps.forEach((m) => m?.forEach((_, d) => allDates.add(d)))
   const dates = Array.from(allDates).sort()
 
-  // Baseline = first available price per asset, for % normalization.
-  const bases = KEYS.map((_, i) => {
-    const m = maps[i]
-    if (!m) return null
-    for (const d of dates) {
-      const v = m.get(d)
-      if (v != null) return v
-    }
-    return null
-  })
+  // Choose the normalization baseline: period start (default) or YTD Jan 1.
+  let bases: (number | null)[]
+  if (anchor === 'ytd') {
+    bases = await getYtdBases()
+  } else {
+    bases = KEYS.map((_, i) => {
+      const m = maps[i]
+      if (!m) return null
+      for (const d of dates) {
+        const v = m.get(d)
+        if (v != null) return v
+      }
+      return null
+    })
+  }
 
   const series = dates.map((d) => {
     const row: Record<string, number> = { time: new Date(d).getTime() }
@@ -76,7 +110,6 @@ export async function GET(request: Request) {
     stats: periodStats(KEYS, maps),
   }
 
-  // Only cache a payload that actually carries data.
   if (series.length) cacheSet(cacheKey, payload, TTL)
   return NextResponse.json(payload, {
     headers: { 'Cache-Control': 'no-store', 'X-Cache': 'MISS' },

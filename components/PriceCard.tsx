@@ -26,20 +26,33 @@ export default function PriceCard({ asset }: { asset: Asset }) {
 
   return (
     <div
-      className="rounded-xl bg-gray-900 border border-gray-800 p-4 flex flex-col gap-2 hover:border-gray-600 transition-colors"
-      style={{ borderTopColor: color, borderTopWidth: 2 }}
+      className="card-glow rounded-xl bg-gray-900/80 border border-gray-700/60 p-4 flex flex-col gap-2 backdrop-blur-sm"
+      style={
+        {
+          borderTopColor: color,
+          borderTopWidth: 2,
+          '--glow': `${color}30`,
+        } as React.CSSProperties
+      }
     >
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-lg">{meta?.icon}</span>
+          <span className="text-lg leading-none" style={{ filter: `drop-shadow(0 0 4px ${color})` }}>
+            {meta?.icon}
+          </span>
           <div>
-            <div className="text-xs text-gray-400">{asset.symbol}</div>
+            <div className="text-[10px] text-gray-500 font-mono tracking-wide">{asset.symbol}</div>
             <div className="text-sm font-medium text-gray-200">{asset.name}</div>
           </div>
         </div>
         <div
-          className="text-xs px-2 py-0.5 rounded-full font-mono"
-          style={{ backgroundColor: `${color}20`, color }}
+          className="text-xs px-2 py-0.5 rounded-full font-mono font-medium tracking-wide"
+          style={{
+            backgroundColor: `${color}18`,
+            color,
+            boxShadow: `0 0 8px ${color}30`,
+          }}
         >
           {asset.changePercent != null
             ? `${up ? '+' : ''}${asset.changePercent.toFixed(2)}%`
@@ -47,21 +60,31 @@ export default function PriceCard({ asset }: { asset: Asset }) {
         </div>
       </div>
 
+      {/* Price */}
       {asset.price != null ? (
         <div className="mt-1">
-          <span className="text-2xl font-bold text-white font-mono">
+          <span
+            className="text-2xl font-bold font-mono"
+            style={{
+              color: '#f1f5f9',
+              textShadow: `0 0 12px ${color}30`,
+            }}
+          >
             {meta?.prefix}
             {fmt(asset.price, meta?.decimals ?? 2)}
           </span>
-          <span className="text-xs text-gray-500 ml-1">{meta?.suffix}</span>
+          <span className="text-xs text-gray-600 ml-1">{meta?.suffix}</span>
         </div>
       ) : (
-        <div className="text-2xl text-gray-600">—</div>
+        <div className="text-2xl text-gray-700">—</div>
       )}
 
+      {/* Change */}
       {asset.change != null && (
         <div className={`text-xs font-mono ${up ? 'text-emerald-400' : 'text-red-400'}`}>
-          {up ? '▲' : '▼'} {Math.abs(asset.change).toFixed(2)}
+          <span style={{ textShadow: up ? '0 0 8px #34D39950' : '0 0 8px #EF444450' }}>
+            {up ? '▲' : '▼'} {Math.abs(asset.change).toFixed(2)}
+          </span>
         </div>
       )}
     </div>
