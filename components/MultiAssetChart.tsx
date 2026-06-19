@@ -87,6 +87,8 @@ interface Props {
   market?: MarketAsset[]
   anchor: 'period' | 'ytd'
   onAnchorChange: (a: 'period' | 'ytd') => void
+  selectedKey?: string | null
+  onSelectKey?: (key: string) => void
 }
 
 export default function MultiAssetChart({
@@ -98,6 +100,8 @@ export default function MultiAssetChart({
   market,
   anchor,
   onAnchorChange,
+  selectedKey,
+  onSelectKey,
 }: Props) {
   const [hidden, setHidden] = useState<Set<string>>(new Set())
 
@@ -108,7 +112,6 @@ export default function MultiAssetChart({
       return next
     })
 
-  // Build a fast lookup: timestamp → { key → pct } for move markers.
   const pctAt = new Map<string, number>()
   data.forEach((row) =>
     ASSETS.forEach((a) => {
@@ -160,90 +163,102 @@ export default function MultiAssetChart({
         ))}
       </div>
 
-      <ResponsiveContainer width="100%" height={320}>
-        <LineChart data={data} margin={{ top: 10, right: 16, bottom: 4, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-          <XAxis
-            dataKey="time"
-            type="number"
-            scale="time"
-            domain={['dataMin', 'dataMax']}
-            tickFormatter={formatTime}
-            tick={{ fill: '#475569', fontSize: 11 }}
-            tickLine={false}
-            axisLine={false}
-            minTickGap={50}
-          />
-          <YAxis
-            tickFormatter={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(0)}%`}
-            tick={{ fill: '#475569', fontSize: 11 }}
-            tickLine={false}
-            axisLine={false}
-            width={50}
-          />
-          <Tooltip content={<CustomTooltip market={market} />} />
-          <ReferenceLine y={0} stroke="#334155" strokeDasharray="4 4" label={{ value: `${anchorLabel} 基准`, position: 'insideTopLeft', fill: '#475569', fontSize: 10 }} />
-
-          {/* Asset lines */}
-          {ASSETS.map((a) => (
-            <Line
-              key={a.key}
-              type="monotone"
-              dataKey={a.key}
-              stroke={a.color}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4, strokeWidth: 0, fillOpacity: 0.9 }}
-              connectNulls
-              hide={hidden.has(a.key)}
-              legendType="none"
+      {/* Chart — grows taller on wider screens */}
+      <div className="h-[300px] md:h-[360px] xl:h-[420px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 10, right: 16, bottom: 4, left: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+            <XAxis
+              dataKey="time"
+              type="number"
+              scale="time"
+              domain={['dataMin', 'dataMax']}
+              tickFormatter={formatTime}
+              tick={{ fill: '#475569', fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+              minTickGap={50}
             />
-          ))}
+            <YAxis
+              tickFormatter={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(0)}%`}
+              tick={{ fill: '#475569', fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+              width={50}
+            />
+            <Tooltip content={<CustomTooltip market={market} />} />
+            <ReferenceLine y={0} stroke="#334155" strokeDasharray="4 4" label={{ value: `${anchorLabel} 基准`, position: 'insideTopLeft', fill: '#475569', fontSize: 10 }} />
 
-          {/* Notable-move markers */}
-          {moves?.map((m, i) => {
-            if (hidden.has(m.key)) return null
-            const y = pctAt.get(`${m.time}:${m.key}`)
-            if (y == null) return null
-            const color = ASSET_BY_KEY[m.key]?.color
-            return (
-              <ReferenceDot
-                key={`${m.key}-${m.time}-${i}`}
-                x={m.time}
-                y={y}
-                r={4}
-                fill={color}
-                fillOpacity={0.3}
-                stroke={color}
-                strokeWidth={1.5}
-              />
-            )
-          })}
-        </LineChart>
-      </ResponsiveContainer>
+            {ASSETS.map((a) => {
+              const isSelected = selectedKey === a.key
+              const isDimmed = selectedKey != null && !isSelected
+              return (
+                <Line
+                  key={a.key}
+                  type="monotone"
+                  dataKey={a.key}
+                  stroke={a.color}
+                  strokeWidth={isSelected ? 3 : 2}
+                  strokeOpacity={isDimmed ? 0.15 : 1}
+                  dot={false}
+                  activeDot={{ r: isSelected ? 5 : 4, strokeWidth: 0, fillOpacity: 0.9 }}
+                  connectNulls
+                  hide={hidden.has(a.key)}
+                  legendType="none"
+                />
+              )
+            })}
+
+            {moves?.map((m, i) => {
+              if (hidden.has(m.key)) return null
+              if (selectedKey != null && m.key !== selectedKey) return null
+              const y = pctAt.get(`${m.time}:${m.key}`)
+              if (y == null) return null
+              const color = ASSET_BY_KEY[m.key]?.color
+              return (
+                <ReferenceDot
+                  key={`${m.key}-${m.time}-${i}`}
+                  x={m.time}
+                  y={y}
+                  r={4}
+                  fill={color}
+                  fillOpacity={0.3}
+                  stroke={color}
+                  strokeWidth={1.5}
+                />
+              )
+            })}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
 
       {/* Interactive legend */}
       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
         {ASSETS.map((a) => {
           const isHidden = hidden.has(a.key)
+          const isSelected = selectedKey === a.key
+          const isDimmed = selectedKey != null && !isSelected
           const chg = stats?.[a.key]?.changePct
           return (
             <button
               key={a.key}
-              onClick={() => toggle(a.key)}
+              onClick={() => {
+                toggle(a.key)
+                onSelectKey?.(a.key)
+              }}
               className={`flex items-center gap-2 text-xs transition-all ${
-                isHidden ? 'opacity-30' : 'opacity-100'
+                isHidden ? 'opacity-30' : isDimmed ? 'opacity-40' : 'opacity-100'
               }`}
-              title={isHidden ? '点击显示' : '点击隐藏'}
+              title={isHidden ? '点击显示' : '点击隐藏 / 高亮'}
             >
               <span
                 className="w-2.5 h-2.5 rounded-full"
                 style={{
                   backgroundColor: a.color,
-                  boxShadow: isHidden ? 'none' : `0 0 6px ${a.color}80`,
+                  boxShadow: isHidden || isDimmed ? 'none' : `0 0 6px ${a.color}80`,
                 }}
               />
-              <span className="text-gray-200">{a.symbol}</span>
+              <span className={isSelected ? 'text-white font-medium' : 'text-gray-200'}>{a.symbol}</span>
               {chg != null && (
                 <span
                   className="font-mono text-[11px]"

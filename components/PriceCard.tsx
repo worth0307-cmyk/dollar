@@ -19,19 +19,35 @@ function fmt(value: number, decimals: number) {
   }).format(value)
 }
 
-export default function PriceCard({ asset }: { asset: Asset }) {
+export default function PriceCard({
+  asset,
+  selected,
+  onSelect,
+}: {
+  asset: Asset
+  selected?: boolean
+  onSelect?: () => void
+}) {
   const meta = ASSET_BY_KEY[asset.key]
   const color = meta?.color ?? '#9CA3AF'
   const up = (asset.changePercent ?? 0) >= 0
 
   return (
     <div
-      className="card-glow rounded-xl bg-gray-900/80 border border-gray-700/60 p-4 flex flex-col gap-2 backdrop-blur-sm"
+      onClick={onSelect}
+      className="card-glow rounded-xl bg-gray-900/80 border border-gray-700/60 p-4 flex flex-col gap-2 backdrop-blur-sm transition-all"
       style={
         {
           borderTopColor: color,
           borderTopWidth: 2,
           '--glow': `${color}30`,
+          cursor: onSelect ? 'pointer' : 'default',
+          ...(selected
+            ? {
+                boxShadow: `0 0 0 2px ${color}60, 0 0 24px ${color}30`,
+                backgroundColor: `color-mix(in srgb, ${color} 8%, #111827)`,
+              }
+            : {}),
         } as React.CSSProperties
       }
     >

@@ -40,7 +40,7 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
       <div className="pb-4 flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <span className="text-[10px] font-mono text-gray-500 block">{fmtDate(event.date)}</span>
+            <span className="text-[10px] font-mono text-slate-400 block">{fmtDate(event.date)}</span>
             <span className="text-xs font-medium text-gray-200 group-hover:text-white transition-colors">
               {event.title}
             </span>
@@ -87,7 +87,7 @@ export default function MacroEvents({ past, upcoming }: Props) {
   return (
     <div>
       {/* Tab bar */}
-      <div className="flex gap-1 mb-4 border-b border-gray-800 pb-3">
+      <div className="flex gap-1 mb-3 border-b border-gray-800 pb-2.5">
         {(['upcoming', 'past'] as const).map((t) => (
           <button
             key={t}
@@ -104,23 +104,24 @@ export default function MacroEvents({ past, upcoming }: Props) {
             </span>
           </button>
         ))}
-        <span className="ml-auto text-[10px] text-gray-600 self-center">
+        <span className="ml-auto text-[10px] text-gray-500 self-center">
           点击展开详情
         </span>
       </div>
 
-      {events.length === 0 ? (
-        <div className="text-xs text-gray-600 py-4 text-center">暂无数据</div>
-      ) : (
-        <div>
-          {events.map((e, i) => (
+      {/* Fixed-height scrollable list */}
+      <div className="overflow-y-auto" style={{ maxHeight: '260px' }}>
+        {events.length === 0 ? (
+          <div className="text-xs text-gray-600 py-4 text-center">暂无数据</div>
+        ) : (
+          events.map((e, i) => (
             <EventCard key={`${e.date}-${i}`} event={e} isUpcoming={tab === 'upcoming'} />
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
 
       <p className="text-[10px] text-gray-600 mt-2">
-        数据来源：Fed日历 / 市场预期。未来事件为估算，结果可在 <code className="text-gray-500">lib/events.ts</code> 中更新。
+        数据来源：Fed日历 / 市场预期。未来事件为估算，可在 <code className="text-gray-500">lib/events.ts</code> 中更新。
       </p>
     </div>
   )

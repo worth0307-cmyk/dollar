@@ -5,7 +5,8 @@ import useSWR from 'swr'
 import MultiAssetChart from './MultiAssetChart'
 import PriceCard from './PriceCard'
 import CorrelationMatrix from './CorrelationMatrix'
-import MovesAndEvents from './MovesAndEvents'
+import NotableMoves from './NotableMoves'
+import MacroEvents from './MacroEvents'
 import type { MacroEvent } from '@/lib/events'
 
 const RANGES = [
@@ -43,9 +44,10 @@ function riskSentiment(market: MarketAsset[] | undefined) {
 }
 
 export default function Dashboard() {
-  const [range, setRange]   = useState('1mo')
-  const [anchor, setAnchor] = useState<'period' | 'ytd'>('period')
+  const [range, setRange]           = useState('1mo')
+  const [anchor, setAnchor]         = useState<'period' | 'ytd'>('period')
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [selectedAsset, setSelectedAsset] = useState<string | null>(null)
 
   const { data: market, isLoading: marketLoading } = useSWR<MarketAsset[]>(
     '/api/market',
@@ -69,6 +71,10 @@ export default function Dashboard() {
   const correlation = history?.correlation ?? { keys: [], matrix: [] }
   const moves       = history?.moves       ?? []
   const stats       = history?.stats       ?? {}
+  const allEvents   = [...(eventsData?.past ?? []), ...(eventsData?.upcoming ?? [])]
+
+  const toggleAsset = (key: string) =>
+    setSelectedAsset((prev) => (prev === key ? null : key))
 
   const [now, setNow] = useState('')
   useEffect(() => {
@@ -147,7 +153,11 @@ export default function Dashboard() {
             ))
           : market?.map((asset, i) => (
               <div key={asset.key} className="animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
-                <PriceCard asset={asset} />
+                <PriceCard
+                  asset={asset}
+                  selected={selectedAsset === asset.key}
+                  onSelect={() => toggleAsset(asset.key)}
+                />
               </div>
             ))}
       </div>
@@ -161,6 +171,7 @@ export default function Dashboard() {
               <h2 className="text-sm font-semibold text-gray-100">Performance</h2>
               <p className="text-[10px] text-gray-500">
                 归一化涨跌幅 · 点击图例隐藏/显示 · 圆点 = 异常波动日
+                {selectedAsset && <span className="text-blue-400 ml-2">· 已锁定高亮</span>}
               </p>
             </div>
             <div className="flex gap-1">
@@ -189,6 +200,8 @@ export default function Dashboard() {
             market={market}
             anchor={anchor}
             onAnchorChange={setAnchor}
+            selectedKey={selectedAsset}
+            onSelectKey={toggleAsset}
           />
 
           <div className="mt-3 flex items-center gap-4 text-[10px] text-gray-500 font-mono">
@@ -214,28 +227,42 @@ export default function Dashboard() {
               Computing…
             </div>
           ) : (
-            <CorrelationMatrix keys={correlation.keys} matrix={correlation.matrix} />
+            <CorrelationMatrix
+              keys={correlation.keys}
+              matrix={correlation.matrix}
+              selectedKey={selectedAsset}
+              onSelectKey={toggleAsset}
+            />
           )}
         </div>
       </div>
 
-      {/* ── Moves & Events (merged) ── */}
-      <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm mb-4">
-        <div className="flex items-baseline justify-between mb-1">
-          <h2 className="text-sm font-semibold text-gray-100">市场异动 &amp; 宏观事件</h2>
-          <span className="text-[10px] text-gray-500">异常波动与宏观日历</span>
-        </div>
-        {historyLoading ? (
-          <div className="h-16 flex items-center justify-center text-gray-500 text-sm live-dot">
-            Analyzing…
+      {/* ── Notable Moves + Macro Events (side by side) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm">
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-100">Notable Moves</h2>
+            <span className="text-[10px] text-gray-500">单日涨跌幅超过 2σ 的异动</span>
           </div>
-        ) : (
-          <MovesAndEvents
-            moves={moves}
+          {historyLoading ? (
+            <div className="h-16 flex items-center justify-center text-gray-500 text-sm live-dot">
+              Analyzing…
+            </div>
+          ) : (
+            <NotableMoves moves={moves} events={allEvents} />
+          )}
+        </div>
+
+        <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm">
+          <div className="flex items-baseline justify-between mb-1">
+            <h2 className="text-sm font-semibold text-gray-100">Macro Events</h2>
+            <span className="text-[10px] text-gray-500">重大宏观事件与日程</span>
+          </div>
+          <MacroEvents
             past={eventsData?.past ?? []}
             upcoming={eventsData?.upcoming ?? []}
           />
-        )}
+        </div>
       </div>
 
       {/* ── Footer ── */}
