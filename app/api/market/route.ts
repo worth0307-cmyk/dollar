@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { fetchStooqQuote } from '@/lib/stooq'
 import { fetchBtcQuote } from '@/lib/coingecko'
+import { cacheGet, cacheSet } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +17,13 @@ async function fetchAsset(key: string) {
   return key === 'btc' ? fetchBtcQuote() : fetchStooqQuote(key)
 }
 
+const CACHE_KEY = 'market'
+const TTL = 60_000 // 60 seconds
+
 export async function GET() {
+  const hit = cacheGet<typeof ASSETS>(CACHE_KEY)
+  if (hit) return NextResponse.json(hit, { headers: { 'X-Cache': 'HIT' } })
+
   const results = await Promise.allSettled(
     ASSETS.map(async (a) => ({ ...a, ...(await fetchAsset(a.key)) }))
   )
@@ -25,5 +32,7 @@ export async function GET() {
       ? r.value
       : { ...ASSETS[i], price: null, change: null, changePercent: null, error: true }
   )
-  return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store' } })
+
+  cacheSet(CACHE_KEY, data, TTL)
+  return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store', 'X-Cache': 'MISS' } })
 }

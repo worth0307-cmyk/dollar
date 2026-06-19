@@ -1,9 +1,10 @@
 const BASE = 'https://api.coingecko.com/api/v3'
+const opts = () => ({ cache: 'no-store' as const, signal: AbortSignal.timeout(8000) })
 
 export async function fetchBtcQuote() {
   const res = await fetch(
     `${BASE}/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true`,
-    { cache: 'no-store' }
+    opts()
   )
   if (!res.ok) throw new Error(`CoinGecko ${res.status}`)
   const json = await res.json()
@@ -19,7 +20,7 @@ export async function fetchBtcHistory(range: string) {
   const days = DAYS[range] ?? '30'
   const res = await fetch(
     `${BASE}/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=daily`,
-    { cache: 'no-store' }
+    opts()
   )
   if (!res.ok) throw new Error(`CoinGecko history ${res.status}`)
   const json = await res.json()

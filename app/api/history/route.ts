@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { fetchStooqHistory } from '@/lib/stooq'
 import { fetchBtcHistory } from '@/lib/coingecko'
+import { cacheGet, cacheSet } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
 
 const KEYS = ['dxy', 'btc', 'brent', 'gold', 'sp500']
+const TTL = 5 * 60_000 // 5 minutes for history
 
 async function fetchHistory(key: string, range: string) {
   return key === 'btc' ? fetchBtcHistory(range) : fetchStooqHistory(key, range)
@@ -13,10 +15,13 @@ async function fetchHistory(key: string, range: string) {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const range = searchParams.get('range') ?? '1mo'
+  const cacheKey = `history:${range}`
+
+  const hit = cacheGet<Record<string, number>[]>(cacheKey)
+  if (hit) return NextResponse.json(hit, { headers: { 'X-Cache': 'HIT' } })
 
   const results = await Promise.allSettled(KEYS.map((k) => fetchHistory(k, range)))
 
-  // Build dateString → close map for each asset
   type DMap = Map<string, number>
   const maps: (DMap | null)[] = results.map((r) => {
     if (r.status !== 'fulfilled') return null
@@ -32,12 +37,10 @@ export async function GET(request: Request) {
     return m
   })
 
-  // Collect and sort all dates across all assets
   const allDates = new Set<string>()
   maps.forEach((m) => m?.forEach((_, d) => allDates.add(d)))
   const dates = Array.from(allDates).sort()
 
-  // First valid value per asset (normalization base)
   const bases = KEYS.map((_, i) => {
     const m = maps[i]
     if (!m) return null
@@ -60,5 +63,6 @@ export async function GET(request: Request) {
     return row
   })
 
-  return NextResponse.json(chartData, { headers: { 'Cache-Control': 'no-store' } })
+  cacheSet(cacheKey, chartData, TTL)
+  return NextResponse.json(chartData, { headers: { 'Cache-Control': 'no-store', 'X-Cache': 'MISS' } })
 }
