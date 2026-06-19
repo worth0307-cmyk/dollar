@@ -184,32 +184,14 @@ export default function MultiAssetChart({
           <Tooltip content={<CustomTooltip market={market} />} />
           <ReferenceLine y={0} stroke="#334155" strokeDasharray="4 4" label={{ value: `${anchorLabel} 基准`, position: 'insideTopLeft', fill: '#475569', fontSize: 10 }} />
 
-          {/* Glow layer — wide + translucent version of each line */}
-          {ASSETS.map((a) => (
-            <Line
-              key={`${a.key}-glow`}
-              type="monotone"
-              dataKey={a.key}
-              stroke={a.color}
-              strokeWidth={7}
-              strokeOpacity={0.12}
-              dot={false}
-              activeDot={false}
-              connectNulls
-              hide={hidden.has(a.key)}
-              legendType="none"
-              isAnimationActive={false}
-            />
-          ))}
-
-          {/* Actual lines */}
+          {/* Asset lines */}
           {ASSETS.map((a) => (
             <Line
               key={a.key}
               type="monotone"
               dataKey={a.key}
               stroke={a.color}
-              strokeWidth={1.8}
+              strokeWidth={2}
               dot={false}
               activeDot={{ r: 4, strokeWidth: 0, fillOpacity: 0.9 }}
               connectNulls

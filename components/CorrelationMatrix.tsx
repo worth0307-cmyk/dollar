@@ -32,7 +32,7 @@ export default function CorrelationMatrix({ keys, matrix }: Props) {
         {/* Header row */}
         <div />
         {keys.map((k) => (
-          <div key={k} className="flex justify-center pb-1">
+          <div key={`col-${k}`} className="flex justify-center pb-1">
             <span
               className="w-2.5 h-2.5 rounded-full"
               style={{ backgroundColor: ASSET_BY_KEY[k]?.color }}
@@ -43,7 +43,7 @@ export default function CorrelationMatrix({ keys, matrix }: Props) {
 
         {/* Rows */}
         {keys.map((rowKey, i) => (
-          <Row key={rowKey} rowKey={rowKey} values={matrix[i]} keys={keys} />
+          <Row key={`row-${rowKey}`} rowKey={rowKey} values={matrix[i]} keys={keys} />
         ))}
       </div>
 

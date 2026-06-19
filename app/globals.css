@@ -12,33 +12,15 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Dark base + subtle sci-fi dot grid, painted directly on the body so it
+   never fights the content's stacking context. */
 body {
-  background: var(--background);
+  background-color: #030712;
+  background-image: radial-gradient(circle, rgba(59, 130, 246, 0.07) 1px, transparent 1px);
+  background-size: 36px 36px;
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-geist-sans, Arial, sans-serif);
-}
-
-/* Sci-fi dot-grid background */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: radial-gradient(circle, rgba(59, 130, 246, 0.1) 1px, transparent 1px);
-  background-size: 36px 36px;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* All content sits above the grid */
-#__next,
-body > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* ─── Next.js dev overlay — hidden ─── */
-nextjs-portal {
-  display: none !important;
 }
 
 /* ─── Card glow on hover ─── */
@@ -50,11 +32,6 @@ nextjs-portal {
               0 0 40px var(--glow, rgba(96, 165, 250, 0.08));
 }
 
-/* ─── Recharts line glow — double layer achieves glow without SVG filters ─── */
-.chart-glow .recharts-surface {
-  overflow: visible;
-}
-
 /* ─── Animations ─── */
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateY(8px); }
@@ -63,12 +40,7 @@ nextjs-portal {
 
 @keyframes pulse-soft {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.4; }
-}
-
-@keyframes slide-in-right {
-  from { opacity: 0; transform: translateX(12px); }
-  to   { opacity: 1; transform: translateX(0); }
+  50%       { opacity: 0.35; }
 }
 
 @keyframes gradient-shift {
@@ -77,15 +49,15 @@ nextjs-portal {
   100% { background-position: 0% 50%; }
 }
 
-.animate-fade-up    { animation: fade-in-up 0.45s cubic-bezier(0.16,1,0.3,1) both; }
-.animate-slide-in   { animation: slide-in-right 0.35s ease both; }
-.live-dot           { animation: pulse-soft 2.5s ease-in-out infinite; }
+.animate-fade-up { animation: fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.live-dot        { animation: pulse-soft 2.5s ease-in-out infinite; }
 
 .gradient-text {
   background: linear-gradient(90deg, #60a5fa 0%, #818cf8 40%, #38bdf8 80%, #60a5fa 100%);
-  background-size: 200% 200%;
+  background-size: 200% auto;
   animation: gradient-shift 6s ease infinite;
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
