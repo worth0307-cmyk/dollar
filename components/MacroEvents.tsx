@@ -103,7 +103,7 @@ export default function MacroEvents({ past, upcoming }: Props) {
       </div>
 
       {/* Scrollable list — pr-3 keeps badge clear of scrollbar */}
-      <div className="flex-1 min-h-0 overflow-y-auto pr-3" style={{ maxHeight: '320px' }}>
+      <div className="flex-1 min-h-0 overflow-y-auto pr-3">
         {events.length === 0 ? (
           <div className="text-sm text-gray-600 py-4 text-center">暂无数据</div>
         ) : (

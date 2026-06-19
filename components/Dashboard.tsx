@@ -241,7 +241,7 @@ export default function Dashboard() {
 
       {/* ── Notable Moves + Macro Events (side by side, 2:3 split) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4 items-stretch">
-        <div className="lg:col-span-2 rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
+        <div className="lg:col-span-2 lg:h-[440px] rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
           <div className="flex items-baseline justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-100">Notable Moves</h2>
             <span className="text-[10px] text-gray-500">单日 &gt; 2σ 异动</span>
@@ -255,7 +255,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="lg:col-span-3 rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
+        <div className="lg:col-span-3 lg:h-[440px] rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
           <div className="flex items-baseline justify-between mb-1">
             <h2 className="text-sm font-semibold text-gray-100">Macro Events</h2>
             <span className="text-[10px] text-gray-500">重大宏观事件与日程</span>
