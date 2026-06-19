@@ -2,12 +2,11 @@
 
 import { useState } from 'react'
 import {
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
-  ReferenceLine,
   ReferenceDot,
   ResponsiveContainer,
   CartesianGrid,
@@ -44,37 +43,47 @@ function fmtPrice(price: number | null | undefined, key: string) {
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
-  // Row data contains both `key` (% change) and `key__p` (raw price on that date)
+  // Lines plot a normalized `key__n` value; real % and price live on the row
+  // under `key` and `key__p`. Resolve the base key to show true figures.
   const rowData: Record<string, number> = payload[0]?.payload ?? {}
+
+  const items = payload
+    .map((p: any) => {
+      const baseKey = String(p.dataKey).replace(/__n$/, '')
+      return {
+        baseKey,
+        color: p.color,
+        pct: rowData[baseKey],
+        price: rowData[`${baseKey}__p`],
+      }
+    })
+    .filter((it: any) => it.pct != null)
+    .sort((a: any, b: any) => b.pct - a.pct)
 
   return (
     <div className="bg-gray-900/95 border border-gray-600/60 rounded-xl p-3.5 shadow-2xl text-xs backdrop-blur-sm">
       <div className="text-gray-400 mb-2.5 font-mono text-[11px]">{formatTime(label)}</div>
-      {payload
-        .filter((p: any) => p.value != null)
-        .sort((a: any, b: any) => b.value - a.value)
-        .map((p: any) => {
-          const meta = ASSET_BY_KEY[p.dataKey]
-          const historicalPrice = rowData[`${p.dataKey}__p`]
-          return (
-            <div key={p.dataKey} className="flex items-center gap-2.5 py-0.5">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-              <span className="text-gray-200 w-14 shrink-0">{meta?.symbol}</span>
-              <span
-                className="font-mono w-16 text-right"
-                style={{ color: p.value >= 0 ? '#34D399' : '#EF4444' }}
-              >
-                {p.value >= 0 ? '+' : ''}
-                {p.value.toFixed(2)}%
+      {items.map((it: any) => {
+        const meta = ASSET_BY_KEY[it.baseKey]
+        return (
+          <div key={it.baseKey} className="flex items-center gap-2.5 py-0.5">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: it.color }} />
+            <span className="text-gray-200 w-14 shrink-0">{meta?.symbol}</span>
+            <span
+              className="font-mono w-16 text-right"
+              style={{ color: it.pct >= 0 ? '#34D399' : '#EF4444' }}
+            >
+              {it.pct >= 0 ? '+' : ''}
+              {it.pct.toFixed(2)}%
+            </span>
+            {it.price != null && (
+              <span className="font-mono text-xs ml-1" style={{ color: `${it.color}cc` }}>
+                {fmtPrice(it.price, it.baseKey)}
               </span>
-              {historicalPrice != null && (
-                <span className="font-mono text-xs ml-1" style={{ color: `${p.color}cc` }}>
-                  {fmtPrice(historicalPrice, p.dataKey)}
-                </span>
-              )}
-            </div>
-          )
-        })}
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -113,15 +122,48 @@ export default function MultiAssetChart({
       return next
     })
 
-  const pctAt = new Map<string, number>()
+  // Per-asset min/max of the % series, so each line can be scaled independently
+  // to fill the full plot height (small-multiples overlaid in one frame).
+  const ranges = new Map<string, { min: number; max: number }>()
+  ASSETS.forEach((a) => {
+    let min = Infinity
+    let max = -Infinity
+    data.forEach((row) => {
+      const v = row[a.key]
+      if (v != null) {
+        if (v < min) min = v
+        if (v > max) max = v
+      }
+    })
+    if (min !== Infinity) ranges.set(a.key, { min, max })
+  })
+
+  const normalize = (key: string, v: number) => {
+    const r = ranges.get(key)
+    if (!r) return 50
+    const span = r.max - r.min
+    return span > 0 ? ((v - r.min) / span) * 100 : 50
+  }
+
+  // Augment each row with `key__n`: the independently-scaled 0–100 value the
+  // line actually plots. Real % (`key`) and price (`key__p`) stay for tooltip.
+  const chartData = data.map((row) => {
+    const out: Record<string, number> = { ...row }
+    ASSETS.forEach((a) => {
+      const v = row[a.key]
+      if (v != null) out[`${a.key}__n`] = normalize(a.key, v)
+    })
+    return out
+  })
+
+  // Move markers need their y in the same normalized coordinate space.
+  const yAt = new Map<string, number>()
   data.forEach((row) =>
     ASSETS.forEach((a) => {
       const v = row[a.key]
-      if (v != null) pctAt.set(`${row.time}:${a.key}`, v)
+      if (v != null) yAt.set(`${row.time}:${a.key}`, normalize(a.key, v))
     })
   )
-
-  const anchorLabel = anchor === 'period' ? '区间' : 'YTD'
 
   if (loading) {
     return (
@@ -167,7 +209,7 @@ export default function MultiAssetChart({
       {/* Chart — fills remaining card height so it stays level with Correlation */}
       <div className="flex-1 min-h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 10, right: 16, bottom: 4, left: 0 }}>
+          <LineChart data={chartData} margin={{ top: 10, right: 16, bottom: 4, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
             <XAxis
               dataKey="time"
@@ -181,27 +223,26 @@ export default function MultiAssetChart({
               minTickGap={50}
             />
             <YAxis
+              type="number"
+              domain={[-8, 108]}
               tick={false}
               tickLine={false}
               axisLine={false}
               width={8}
             />
             <Tooltip content={<CustomTooltip />} />
-            <ReferenceLine y={0} stroke="#334155" strokeDasharray="4 4" label={{ value: `${anchorLabel} 基准`, position: 'insideTopLeft', fill: '#475569', fontSize: 10 }} />
 
             {ASSETS.map((a) => {
               const isSelected = selectedKey === a.key
               const isDimmed = selectedKey != null && !isSelected
               return (
-                <Area
+                <Line
                   key={a.key}
                   type="monotone"
-                  dataKey={a.key}
+                  dataKey={`${a.key}__n`}
                   stroke={a.color}
-                  strokeWidth={isSelected ? 2 : 1.5}
-                  strokeOpacity={isDimmed ? 0.12 : 1}
-                  fill={a.color}
-                  fillOpacity={isDimmed ? 0 : 0.04}
+                  strokeWidth={isSelected ? 2.25 : 1.5}
+                  strokeOpacity={isDimmed ? 0.1 : 1}
                   dot={false}
                   activeDot={{ r: isSelected ? 5 : 4, strokeWidth: 0, fillOpacity: 0.9 }}
                   connectNulls
@@ -214,7 +255,7 @@ export default function MultiAssetChart({
             {moves?.map((m, i) => {
               if (hidden.has(m.key)) return null
               if (selectedKey != null && m.key !== selectedKey) return null
-              const y = pctAt.get(`${m.time}:${m.key}`)
+              const y = yAt.get(`${m.time}:${m.key}`)
               if (y == null) return null
               const color = ASSET_BY_KEY[m.key]?.color
               return (
@@ -230,7 +271,7 @@ export default function MultiAssetChart({
                 />
               )
             })}
-          </AreaChart>
+          </LineChart>
         </ResponsiveContainer>
       </div>
 
