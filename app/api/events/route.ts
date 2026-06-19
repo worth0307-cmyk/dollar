@@ -7,7 +7,7 @@ export async function GET() {
   const today = new Date().toISOString().slice(0, 10)
   const past = PAST_EVENTS.filter((e) => e.date <= today)
     .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 8)
+    .slice(0, 12)
   const upcoming = UPCOMING_EVENTS.filter((e) => e.date > today)
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 6)

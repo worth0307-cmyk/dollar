@@ -36,19 +36,19 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
       <div className="pb-4 flex-1 min-w-0">
         <div className="flex items-start gap-3">
           {/* Title block — fixed width so detail sits to its right */}
-          <div className="w-40 shrink-0">
-            <span className="text-[10px] font-mono text-slate-300 block">{fmtDate(event.date)}</span>
-            <span className="text-xs font-medium text-gray-100">{event.title}</span>
+          <div className="w-44 shrink-0">
+            <span className="text-[11px] font-mono text-slate-300 block">{fmtDate(event.date)}</span>
+            <span className="text-sm font-medium text-gray-100">{event.title}</span>
           </div>
 
           {/* Detail — always visible, fills available width */}
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] text-gray-100 leading-relaxed">{event.description}</p>
+            <p className="text-xs text-gray-100 leading-relaxed">{event.description}</p>
             <div className="mt-1.5 flex gap-1 flex-wrap">
               {event.assets.map((k) => (
                 <span
                   key={k}
-                  className="text-[10px] px-1.5 py-0.5 rounded font-mono"
+                  className="text-[11px] px-1.5 py-0.5 rounded font-mono"
                   style={{
                     backgroundColor: `${ASSET_BY_KEY[k]?.color ?? '#888'}18`,
                     color: ASSET_BY_KEY[k]?.color ?? '#888',
@@ -61,7 +61,7 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
           </div>
 
           {/* Impact badge — mr-1 keeps it clear of the scrollbar */}
-          <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium mr-1 ${IMPACT_STYLE[event.impact]}`}>
+          <span className={`text-[11px] px-1.5 py-0.5 rounded shrink-0 font-medium mr-1 ${IMPACT_STYLE[event.impact]}`}>
             {IMPACT_LABEL[event.impact]}
           </span>
         </div>
@@ -88,14 +88,14 @@ export default function MacroEvents({ past, upcoming }: Props) {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+            className={`text-sm px-3 py-1.5 rounded-md font-medium transition-colors ${
               tab === t
                 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                 : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
             }`}
           >
             {t === 'upcoming' ? '即将发生' : '历史事件'}
-            <span className="ml-1.5 text-[10px] opacity-60">
+            <span className="ml-1.5 text-[11px] opacity-60">
               {t === 'upcoming' ? upcoming.length : past.length}
             </span>
           </button>
@@ -105,7 +105,7 @@ export default function MacroEvents({ past, upcoming }: Props) {
       {/* Scrollable list — pr-3 keeps badge clear of scrollbar */}
       <div className="flex-1 min-h-0 overflow-y-auto pr-3" style={{ maxHeight: '320px' }}>
         {events.length === 0 ? (
-          <div className="text-xs text-gray-600 py-4 text-center">暂无数据</div>
+          <div className="text-sm text-gray-600 py-4 text-center">暂无数据</div>
         ) : (
           events.map((e, i) => (
             <EventCard key={`${e.date}-${i}`} event={e} isUpcoming={tab === 'upcoming'} />

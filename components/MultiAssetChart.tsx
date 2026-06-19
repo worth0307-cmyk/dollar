@@ -68,7 +68,7 @@ function CustomTooltip({ active, payload, label }: any) {
                 {p.value.toFixed(2)}%
               </span>
               {historicalPrice != null && (
-                <span className="font-mono text-[10px] ml-1" style={{ color: `${p.color}cc` }}>
+                <span className="font-mono text-xs ml-1" style={{ color: `${p.color}cc` }}>
                   {fmtPrice(historicalPrice, p.dataKey)}
                 </span>
               )}
@@ -199,8 +199,8 @@ export default function MultiAssetChart({
                   type="monotone"
                   dataKey={a.key}
                   stroke={a.color}
-                  strokeWidth={isSelected ? 3 : 2}
-                  strokeOpacity={isDimmed ? 0.15 : 1}
+                  strokeWidth={isSelected ? 3.75 : 2.5}
+                  strokeOpacity={isDimmed ? 0.12 : 1}
                   dot={false}
                   activeDot={{ r: isSelected ? 5 : 4, strokeWidth: 0, fillOpacity: 0.9 }}
                   connectNulls
