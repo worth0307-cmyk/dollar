@@ -1,5 +1,5 @@
 const BASE = 'https://api.coingecko.com/api/v3'
-const opts = () => ({ cache: 'no-store' as const, signal: AbortSignal.timeout(8000) })
+const opts = () => ({ cache: 'no-store' as const, signal: AbortSignal.timeout(25_000) })
 
 export async function fetchBtcQuote() {
   const res = await fetch(

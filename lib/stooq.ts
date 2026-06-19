@@ -15,24 +15,34 @@ function yyyymmdd(d: Date) {
 const opts = () => ({
   headers: { 'User-Agent': UA },
   cache: 'no-store' as const,
-  signal: AbortSignal.timeout(8000),
+  signal: AbortSignal.timeout(25_000), // 25s — external APIs can be slow
 })
 
+// Parse daily history CSV (Date,Open,High,Low,Close,Volume)
+function parseDailyRows(text: string) {
+  return text
+    .trim()
+    .split('\n')
+    .slice(1) // skip header
+    .map((r) => r.split(','))
+    .filter((c) => c.length >= 5 && !isNaN(parseFloat(c[4])) && parseFloat(c[4]) > 0)
+}
+
+// Use 7-day daily history for current price + prev-close change (avoids N/D issue)
 export async function fetchStooqQuote(key: string) {
   const sym = SYM[key]
   if (!sym) throw new Error(`Unknown key: ${key}`)
-  const url = `https://stooq.com/q/l/?s=${encodeURIComponent(sym)}&f=sd2t2ohlcv&h&e=csv`
+  const d1 = yyyymmdd(new Date(Date.now() - 7 * 86_400_000))
+  const d2 = yyyymmdd(new Date())
+  const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(sym)}&d1=${d1}&d2=${d2}&i=d`
   const res = await fetch(url, opts())
   if (!res.ok) throw new Error(`Stooq ${key} HTTP ${res.status}`)
-  const text = await res.text()
-  const rows = text.trim().split('\n')
-  if (rows.length < 2) throw new Error(`Stooq empty: ${key}`)
-  const cols = rows[1].split(',')
-  const open = parseFloat(cols[3])
-  const close = parseFloat(cols[6])
-  if (isNaN(open) || isNaN(close)) throw new Error(`Stooq bad data: ${key}`)
-  const change = close - open
-  return { price: close, change, changePercent: (change / open) * 100 }
+  const rows = parseDailyRows(await res.text())
+  if (rows.length === 0) throw new Error(`Stooq no data: ${key}`)
+  const price = parseFloat(rows[rows.length - 1][4])
+  const prevPrice = rows.length >= 2 ? parseFloat(rows[rows.length - 2][4]) : price
+  const change = price - prevPrice
+  return { price, change, changePercent: prevPrice > 0 ? (change / prevPrice) * 100 : 0 }
 }
 
 export async function fetchStooqHistory(key: string, range: string) {
@@ -40,24 +50,18 @@ export async function fetchStooqHistory(key: string, range: string) {
   if (!sym) throw new Error(`Unknown key: ${key}`)
   const daysBack: Record<string, number> = { '5d': 9, '1mo': 36, '3mo': 100, '1y': 375 }
   const days = daysBack[range] ?? 36
-  const d1 = new Date(Date.now() - days * 86_400_000)
+  const d1 = yyyymmdd(new Date(Date.now() - days * 86_400_000))
+  const d2 = yyyymmdd(new Date())
   const interval = range === '1y' ? 'w' : 'd'
   const url =
     `https://stooq.com/q/d/l/?s=${encodeURIComponent(sym)}` +
-    `&d1=${yyyymmdd(d1)}&d2=${yyyymmdd(new Date())}&i=${interval}`
+    `&d1=${d1}&d2=${d2}&i=${interval}`
   const res = await fetch(url, opts())
   if (!res.ok) throw new Error(`Stooq history ${key} HTTP ${res.status}`)
-  const text = await res.text()
-  const rows = text.trim().split('\n').slice(1)
-  const timestamps: number[] = []
-  const closes: (number | null)[] = []
-  for (const row of rows) {
-    const c = row.split(',')
-    if (c.length < 5) continue
-    const ts = new Date(c[0]).getTime() / 1000
-    const close = parseFloat(c[4])
-    if (!isNaN(ts) && !isNaN(close)) { timestamps.push(ts); closes.push(close) }
+  const rows = parseDailyRows(await res.text())
+  if (rows.length === 0) throw new Error(`Stooq no rows: ${key}`)
+  return {
+    timestamps: rows.map((c) => new Date(c[0]).getTime() / 1000),
+    closes: rows.map((c) => parseFloat(c[4])) as (number | null)[],
   }
-  if (timestamps.length === 0) throw new Error(`Stooq no rows: ${key}`)
-  return { timestamps, closes }
 }

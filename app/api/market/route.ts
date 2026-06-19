@@ -27,11 +27,11 @@ export async function GET() {
   const results = await Promise.allSettled(
     ASSETS.map(async (a) => ({ ...a, ...(await fetchAsset(a.key)) }))
   )
-  const data = results.map((r, i) =>
-    r.status === 'fulfilled'
-      ? r.value
-      : { ...ASSETS[i], price: null, change: null, changePercent: null, error: true }
-  )
+  const data = results.map((r, i) => {
+    if (r.status === 'fulfilled') return r.value
+    console.error(`[market] ${ASSETS[i].key} failed:`, (r as PromiseRejectedResult).reason)
+    return { ...ASSETS[i], price: null, change: null, changePercent: null, error: true }
+  })
 
   cacheSet(CACHE_KEY, data, TTL)
   return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store', 'X-Cache': 'MISS' } })
