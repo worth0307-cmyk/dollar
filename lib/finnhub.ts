@@ -18,6 +18,9 @@ type EventTemplate = {
   beat: string
   miss: string
   url: string
+  // 'positive' = actual > estimate means beat; 'negative' = actual < estimate means beat
+  // undefined = no numeric comparison available (e.g. Jackson Hole speech)
+  beatDirection?: 'positive' | 'negative'
 }
 
 const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
@@ -30,6 +33,7 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: '鸽派惊喜/降息落地 → DXY↓，黄金+美股+BTC齐升，风险偏好回暖',
       miss: '鹰派/维持不变 → DXY↑，金价承压，美股震荡，降息预期延后',
       url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+      beatDirection: 'negative', // lower rate than expected = dovish = beat
     },
   },
   {
@@ -41,6 +45,7 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: 'CPI高于预期（通胀顽固）→ DXY↑，金价承压，美股回落，降息预期推迟',
       miss: 'CPI低于预期（通胀降温）→ DXY↓，黄金+美股走强，降息预期升温',
       url: 'https://www.bls.gov/cpi/',
+      beatDirection: 'positive',
     },
   },
   {
@@ -52,6 +57,7 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: 'PCE高于预期 → DXY↑，黄金承压，美股回落，鹰派预期升温',
       miss: 'PCE低于预期 → DXY↓，黄金+美股走强，降息概率上升',
       url: 'https://www.bea.gov/data/personal-consumption-expenditures-price-index',
+      beatDirection: 'positive',
     },
   },
   {
@@ -63,6 +69,7 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: '就业超预期（劳动市场强劲）→ DXY↑，降息预期降温，美股短期震荡',
       miss: '就业不及预期（劳动市场走弱）→ DXY↓，降息预期升温，黄金避险走强',
       url: 'https://www.bls.gov/news.release/empsit.htm',
+      beatDirection: 'positive',
     },
   },
   {
@@ -74,6 +81,7 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: 'GDP超预期（经济韧性强）→ DXY↑，美股+布伦特走强，衰退担忧缓解',
       miss: 'GDP不及预期（经济走弱）→ 布伦特+美股承压，黄金避险走强',
       url: 'https://www.bea.gov/data/gdp/gross-domestic-product',
+      beatDirection: 'positive',
     },
   },
   {
@@ -85,6 +93,7 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: '鲍威尔明确降息信号 → DXY大跌，黄金+美股+BTC飙升',
       miss: '措辞审慎，不给降息承诺 → DXY↑，黄金震荡，美股回调',
       url: 'https://www.kansascityfed.org/research/jackson-hole-economic-symposium/',
+      // no beatDirection: speech has no numeric actual vs estimate
     },
   },
   {
@@ -96,6 +105,7 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: '消费超预期（内需强劲）→ 经济韧性确认，DXY↑，美股短期走强',
       miss: '消费不及预期（内需走弱）→ 经济走弱信号，DXY↓，美股承压',
       url: 'https://www.census.gov/retail/',
+      beatDirection: 'positive',
     },
   },
   {
@@ -107,6 +117,7 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: '失业率低于预期（就业强劲）→ DXY↑，降息预期降温，美股短期震荡',
       miss: '失业率高于预期（就业走弱）→ DXY↓，降息预期升温，避险情绪升',
       url: 'https://www.bls.gov/news.release/empsit.htm',
+      beatDirection: 'negative', // lower unemployment = better = beat
     },
   },
   {
@@ -118,6 +129,7 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: 'PMI超预期（经济扩张）→ DXY↑，美股+布伦特走强，需求预期改善',
       miss: 'PMI不及预期（收缩加剧）→ 衰退担忧升温，布伦特承压，黄金避险',
       url: 'https://www.ismworld.org/',
+      beatDirection: 'positive',
     },
   },
   {
@@ -129,6 +141,7 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: 'PPI超预期 → 通胀上游压力上升，DXY↑，美股短期承压',
       miss: 'PPI低于预期 → 通胀压力减弱，DXY↓，市场降息预期温和升温',
       url: 'https://www.bls.gov/ppi/',
+      beatDirection: 'positive',
     },
   },
 ]
@@ -218,6 +231,15 @@ export async function fetchFinnhubEvents(token: string): Promise<{
     const isPast = date <= todayStr
     const unit = e.unit ?? ''
 
+    // Auto-detect beat/miss for past events that have both actual and estimate
+    let outcome: 'beat' | 'miss' | undefined
+    if (isPast && e.actual != null && e.estimate != null && template.beatDirection) {
+      const diff = e.actual - e.estimate
+      const beatWhen = template.beatDirection === 'positive' ? diff > 0 : diff < 0
+      // Treat negligible differences (<0.01) as neither beat nor miss
+      if (Math.abs(diff) >= 0.01) outcome = beatWhen ? 'beat' : 'miss'
+    }
+
     const event: MacroEvent = {
       date,
       title: template.title,
@@ -232,8 +254,9 @@ export async function fetchFinnhubEvents(token: string): Promise<{
       assets: template.assets,
       type: isPast ? 'past' : 'upcoming',
       url: template.url,
-      beat: isPast ? undefined : template.beat,
-      miss: isPast ? undefined : template.miss,
+      beat: template.beat,
+      miss: template.miss,
+      outcome,
     }
 
     if (isPast) past.push(event)

@@ -8,6 +8,7 @@ export interface MacroEvent {
   url?: string        // link to official source or news coverage
   beat?: string       // market impact if data beats expectations
   miss?: string       // market impact if data misses expectations
+  outcome?: 'beat' | 'miss'  // auto-detected for past events with actual vs estimate data
 }
 
 // ─── Past Events ──────────────────────────────────────────────────────────────
