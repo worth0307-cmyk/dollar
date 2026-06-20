@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { PAST_EVENTS, UPCOMING_EVENTS } from '@/lib/events'
-import { fetchEconomicCalendar } from '@/lib/calendar'
+import { fetchEconomicCalendar, type CalendarDebug } from '@/lib/calendar'
 import { cacheGet, cacheSet } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
@@ -25,8 +25,10 @@ export async function GET(req: Request) {
   const cached = cacheGet(CACHE_KEY)
   if (cached && !debug) return NextResponse.json(cached)
 
+  const diagInfo: CalendarDebug | undefined = debug ? { feeds: {}, matched: [] } : undefined
+
   try {
-    const data = await fetchEconomicCalendar()
+    const data = await fetchEconomicCalendar(diagInfo)
     if (data.past.length + data.upcoming.length > 0) {
       cacheSet(CACHE_KEY, data, TTL)
       if (debug) {
@@ -34,18 +36,17 @@ export async function GET(req: Request) {
           source: 'forexfactory',
           pastCount: data.past.length,
           upcomingCount: data.upcoming.length,
-          sample: [...data.past, ...data.upcoming]
-            .slice(0, 6)
-            .map((e) => `${e.date} ${e.title}${e.outcome ? ` [${e.outcome}]` : ''}`),
+          feeds: diagInfo?.feeds,
+          matched: diagInfo?.matched,
         })
       }
       return NextResponse.json(data)
     }
     if (debug) {
-      return NextResponse.json({ source: 'static', note: 'feed returned 0 matched US events' })
+      return NextResponse.json({ source: 'static', note: 'feed returned 0 matched US events', feeds: diagInfo?.feeds })
     }
   } catch (err) {
-    if (debug) return NextResponse.json({ source: 'static', calendarError: String(err) })
+    if (debug) return NextResponse.json({ source: 'static', calendarError: String(err), feeds: diagInfo?.feeds })
     console.error('[events] ForexFactory failed, using static data:', err)
   }
 

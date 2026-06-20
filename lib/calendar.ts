@@ -197,11 +197,14 @@ function buildDescription(
   return desc
 }
 
-export async function fetchEconomicCalendar(): Promise<{
-  past: MacroEvent[]
-  upcoming: MacroEvent[]
-}> {
-  const res = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
+// faireconomy serves three rolling weekly windows. Pulling all three widens
+// coverage to ~3 weeks so the "upcoming" tab still has data on weekends and the
+// "past" tab carries more history. nextweek/lastweek may not always exist —
+// failures are tolerated and we keep whatever feeds respond.
+const FEED_WEEKS = ['lastweek', 'thisweek', 'nextweek'] as const
+
+async function fetchWeek(week: string): Promise<FFEvent[]> {
+  const res = await fetch(`https://nfs.faireconomy.media/ff_calendar_${week}.json`, {
     headers: {
       // ForexFactory blocks non-browser user agents.
       'User-Agent':
@@ -211,10 +214,41 @@ export async function fetchEconomicCalendar(): Promise<{
   })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`ForexFactory ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`${res.status}: ${body.slice(0, 120)}`)
+  }
+  return res.json()
+}
+
+export interface CalendarDebug {
+  feeds: Record<string, number | string>
+  matched: Array<Record<string, unknown>>
+}
+
+export async function fetchEconomicCalendar(debug?: CalendarDebug): Promise<{
+  past: MacroEvent[]
+  upcoming: MacroEvent[]
+}> {
+  const settled = await Promise.allSettled(FEED_WEEKS.map(fetchWeek))
+
+  const raw: FFEvent[] = []
+  FEED_WEEKS.forEach((week, i) => {
+    const r = settled[i]
+    if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+      raw.push(...r.value)
+      if (debug) debug.feeds[week] = r.value.length
+    } else if (debug) {
+      debug.feeds[week] = r.status === 'rejected' ? String(r.reason) : 'not-an-array'
+    }
+  })
+
+  // Every feed failed → signal the route to fall back to static data.
+  if (raw.length === 0) {
+    const reasons = settled
+      .map((r, i) => `${FEED_WEEKS[i]}: ${r.status === 'rejected' ? String(r.reason) : 'empty'}`)
+      .join('; ')
+    throw new Error(`ForexFactory unavailable — ${reasons}`)
   }
 
-  const raw: FFEvent[] = await res.json()
   const now = Date.now()
 
   const past: MacroEvent[] = []
@@ -250,6 +284,20 @@ export async function fetchEconomicCalendar(): Promise<{
         const beatWhen = template.beatDirection === 'positive' ? diff > 0 : diff < 0
         outcome = beatWhen ? 'beat' : 'miss'
       }
+    }
+
+    if (debug) {
+      debug.matched.push({
+        date,
+        rawTitle: e.title,
+        mapped: template.title,
+        impact,
+        isPast,
+        actual: e.actual ?? null,
+        forecast: e.forecast ?? null,
+        previous: e.previous ?? null,
+        outcome: outcome ?? null,
+      })
     }
 
     const event: MacroEvent = {
