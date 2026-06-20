@@ -99,8 +99,8 @@ export default function PriceCard({
         <div className="text-2xl text-gray-700">—</div>
       )}
 
-      {/* Change row: 24h absolute + period cumulative */}
-      <div className="flex items-center justify-between gap-2">
+      {/* Change row: 24h absolute + period cumulative — mt-auto pins to card bottom */}
+      <div className="flex items-center justify-between gap-2 mt-auto">
         {asset.change != null && (
           <div className={`text-xs font-mono ${up ? 'text-emerald-400' : 'text-red-400'}`}>
             <span style={{ textShadow: up ? '0 0 8px #34D39950' : '0 0 8px #EF444450' }}>
