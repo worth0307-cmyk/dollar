@@ -106,7 +106,6 @@ interface Props {
   selectedKey?: string | null
   onSelectKey?: (key: string) => void
   selectedMove?: { key: string; time: number } | null
-  onSelectMove?: (m: { key: string; time: number }) => void
 }
 
 export default function MultiAssetChart({
@@ -121,7 +120,6 @@ export default function MultiAssetChart({
   selectedKey,
   onSelectKey,
   selectedMove,
-  onSelectMove,
 }: Props) {
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [hoveredDot, setHoveredDot] = useState<string | null>(null)
@@ -211,10 +209,8 @@ export default function MultiAssetChart({
         ))}
       </div>
 
-      {/* Chart + move picker side panel */}
-      <div className="flex gap-2 flex-1 min-h-[300px]">
-        {/* Chart */}
-        <div className="flex-1 min-w-0">
+      {/* Chart */}
+      <div className="flex-1 min-h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 8, bottom: 4, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
@@ -276,13 +272,9 @@ export default function MultiAssetChart({
                       return (
                         <g
                           key={index}
-                          style={{ cursor: 'pointer', pointerEvents: 'all' }}
-                          onClick={() => onSelectMove?.({ key: a.key, time: move.time })}
                           onMouseEnter={() => setHoveredDot(dotKey)}
                           onMouseLeave={() => setHoveredDot(null)}
                         >
-                          {/* Transparent hit target — easier to click */}
-                          <circle cx={cx} cy={cy} r={10} fill="transparent" />
                           {/* Pulsing ring when selected */}
                           {isSelected && (
                             <circle cx={cx} cy={cy} r={7} fill="none" stroke={a.color} strokeWidth={1.5}>
@@ -305,42 +297,6 @@ export default function MultiAssetChart({
               })}
             </LineChart>
           </ResponsiveContainer>
-        </div>
-
-        {/* Move picker side panel */}
-        {moves && moves.length > 0 && (
-          <div className="w-28 flex flex-col shrink-0 border-l border-gray-800 pl-2">
-            <div className="text-[10px] text-gray-500 font-mono mb-1.5 shrink-0">异动日</div>
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-0.5">
-              {moves.map((m, i) => {
-                const meta = ASSET_BY_KEY[m.key]
-                const isSelected = selectedMove?.key === m.key && selectedMove?.time === m.time
-                const color = meta?.color ?? '#888'
-                return (
-                  <button
-                    key={i}
-                    onClick={() => onSelectMove?.({ key: m.key, time: m.time })}
-                    className="w-full flex items-center gap-1 px-1 py-0.5 rounded text-left transition-colors hover:bg-gray-800/60"
-                    style={
-                      isSelected
-                        ? { backgroundColor: `${color}18`, boxShadow: `inset 0 0 0 1px ${color}40` }
-                        : undefined
-                    }
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                    <span className="font-mono text-[10px] text-gray-400">{fmtDate(m.time)}</span>
-                    <span
-                      className="font-mono text-[10px] ml-auto shrink-0"
-                      style={{ color: m.changePct >= 0 ? '#34D399' : '#EF4444' }}
-                    >
-                      {m.changePct >= 0 ? '+' : ''}{m.changePct.toFixed(1)}%
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Interactive legend */}

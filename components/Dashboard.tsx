@@ -212,7 +212,6 @@ export default function Dashboard() {
               selectedKey={selectedAsset}
               onSelectKey={toggleAsset}
               selectedMove={selectedMove}
-              onSelectMove={toggleMove}
             />
           </div>
 
