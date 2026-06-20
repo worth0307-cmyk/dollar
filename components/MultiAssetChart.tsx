@@ -7,7 +7,6 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  ReferenceDot,
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts'
@@ -32,6 +31,11 @@ function formatTime(ts: number) {
   return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }).replace('/', '.')
 }
 
+function fmtDate(ts: number) {
+  const d = new Date(ts)
+  return `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+}
+
 function fmtPrice(price: number | null | undefined, key: string) {
   if (price == null) return '—'
   const meta = ASSET_BY_KEY[key]
@@ -43,8 +47,6 @@ function fmtPrice(price: number | null | undefined, key: string) {
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
-  // Lines plot a normalized `key__n` value; real % and price live on the row
-  // under `key` and `key__p`. Resolve the base key to show true figures.
   const rowData: Record<string, number> = payload[0]?.payload ?? {}
 
   const items = payload
@@ -131,8 +133,6 @@ export default function MultiAssetChart({
       return next
     })
 
-  // Per-asset min/max of the % series, so each line can be scaled independently
-  // to fill the full plot height (small-multiples overlaid in one frame).
   const ranges = new Map<string, { min: number; max: number }>()
   ASSETS.forEach((a) => {
     let min = Infinity
@@ -154,8 +154,6 @@ export default function MultiAssetChart({
     return span > 0 ? ((v - r.min) / span) * 100 : 50
   }
 
-  // Augment each row with `key__n`: the independently-scaled 0–100 value the
-  // line actually plots. Real % (`key`) and price (`key__p`) stay for tooltip.
   const chartData = data.map((row) => {
     const out: Record<string, number> = { ...row }
     ASSETS.forEach((a) => {
@@ -165,14 +163,12 @@ export default function MultiAssetChart({
     return out
   })
 
-  // Move markers need their y in the same normalized coordinate space.
-  const yAt = new Map<string, number>()
-  data.forEach((row) =>
-    ASSETS.forEach((a) => {
-      const v = row[a.key]
-      if (v != null) yAt.set(`${row.time}:${a.key}`, normalize(a.key, v))
-    })
-  )
+  // O(1) move lookup: key → Map<time, Move>
+  const movesByKey = new Map<string, Map<number, Move>>()
+  moves?.forEach((m) => {
+    if (!movesByKey.has(m.key)) movesByKey.set(m.key, new Map())
+    movesByKey.get(m.key)!.set(m.time, m)
+  })
 
   if (loading) {
     return (
@@ -215,103 +211,136 @@ export default function MultiAssetChart({
         ))}
       </div>
 
-      {/* Chart — fills remaining card height so it stays level with Correlation */}
-      <div className="flex-1 min-h-[300px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 10, right: 16, bottom: 4, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-            <XAxis
-              dataKey="time"
-              type="number"
-              scale="time"
-              domain={['dataMin', 'dataMax']}
-              tickFormatter={formatTime}
-              tick={{ fill: '#475569', fontSize: 11 }}
-              tickLine={false}
-              axisLine={false}
-              minTickGap={50}
-            />
-            <YAxis
-              type="number"
-              domain={[-8, 108]}
-              tick={false}
-              tickLine={false}
-              axisLine={false}
-              width={8}
-            />
-            <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#374151', strokeWidth: 1, fill: 'none' }} />
+      {/* Chart + move picker side panel */}
+      <div className="flex gap-2 flex-1 min-h-[300px]">
+        {/* Chart */}
+        <div className="flex-1 min-w-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 10, right: 8, bottom: 4, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+              <XAxis
+                dataKey="time"
+                type="number"
+                scale="time"
+                domain={['dataMin', 'dataMax']}
+                tickFormatter={formatTime}
+                tick={{ fill: '#475569', fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+                minTickGap={50}
+              />
+              <YAxis
+                type="number"
+                domain={[-8, 108]}
+                tick={false}
+                tickLine={false}
+                axisLine={false}
+                width={8}
+              />
+              <Tooltip
+                content={<CustomTooltip />}
+                cursor={{ stroke: '#4B5563', strokeWidth: 1, fill: 'none' }}
+                wrapperStyle={{ outline: 'none', border: 'none' }}
+              />
 
-            {ASSETS.map((a) => {
-              const isSelected = selectedKey === a.key
-              const isDimmed = selectedKey != null && !isSelected
-              return (
-                <Line
-                  key={a.key}
-                  type="monotone"
-                  dataKey={`${a.key}__n`}
-                  stroke={a.color}
-                  strokeWidth={isSelected ? 2.25 : 1.5}
-                  strokeOpacity={isDimmed ? 0.1 : 1}
-                  dot={false}
-                  activeDot={{ r: isSelected ? 5 : 4, strokeWidth: 0, fillOpacity: 0.9 }}
-                  connectNulls
-                  hide={hidden.has(a.key)}
-                  legendType="none"
-                />
-              )
-            })}
+              {ASSETS.map((a) => {
+                const isAssetSelected = selectedKey === a.key
+                const isDimmed = selectedKey != null && !isAssetSelected
+                const assetMoves = movesByKey.get(a.key)
 
-            {moves?.map((m, i) => {
-              if (hidden.has(m.key)) return null
-              if (selectedKey != null && m.key !== selectedKey) return null
-              const y = yAt.get(`${m.time}:${m.key}`)
-              if (y == null) return null
-              const color = ASSET_BY_KEY[m.key]?.color ?? '#888'
-              const dotKey = `${m.key}-${m.time}`
-              const isSelected = selectedMove?.key === m.key && selectedMove?.time === m.time
-              const isHovered = hoveredDot === dotKey
-              const r = isSelected ? 7 : isHovered ? 6 : 4
-              return (
-                <ReferenceDot
-                  key={`${m.key}-${m.time}-${i}`}
-                  x={m.time}
-                  y={y}
-                  r={0}
-                  fill="none"
-                  stroke="none"
-                  shape={((props: any) => {
-                    const { cx, cy } = props
-                    return (
-                      <g
-                        style={{ cursor: 'pointer', pointerEvents: 'all' }}
-                        onClick={() => onSelectMove?.({ key: m.key, time: m.time })}
-                        onMouseEnter={() => setHoveredDot(dotKey)}
-                        onMouseLeave={() => setHoveredDot(null)}
-                      >
-                        {/* Invisible hit area so small dots are easier to click */}
-                        <circle cx={cx} cy={cy} r={10} fill="transparent" />
-                        {/* Pulsing ring when selected */}
-                        {isSelected && (
-                          <circle cx={cx} cy={cy} r={7} fill="none" stroke={color} strokeWidth={1.5}>
-                            <animate attributeName="r" from="7" to="20" dur="1.5s" repeatCount="indefinite" />
-                            <animate attributeName="stroke-opacity" from="0.7" to="0" dur="1.5s" repeatCount="indefinite" />
-                          </circle>
-                        )}
-                        <circle
-                          cx={cx} cy={cy} r={r}
-                          fill={color}
-                          fillOpacity={isSelected ? 0.9 : isHovered ? 0.7 : 0.3}
-                          stroke={color}
-                          strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1}
-                        />
-                      </g>
-                    )
-                  }) as any}
-                />
-              )
-            })}
-          </LineChart>
-        </ResponsiveContainer>
+                return (
+                  <Line
+                    key={a.key}
+                    type="monotone"
+                    dataKey={`${a.key}__n`}
+                    stroke={a.color}
+                    strokeWidth={isAssetSelected ? 2.25 : 1.5}
+                    strokeOpacity={isDimmed ? 0.1 : 1}
+                    activeDot={{ r: isAssetSelected ? 5 : 4, strokeWidth: 0, fillOpacity: 0.9 }}
+                    connectNulls
+                    hide={hidden.has(a.key)}
+                    legendType="none"
+                    dot={(props: any) => {
+                      const { cx, cy, payload, index } = props
+                      if (cx == null || cy == null || !assetMoves) return <g key={index} />
+                      const move = assetMoves.get(payload?.time)
+                      if (!move) return <g key={index} />
+                      if (hidden.has(a.key)) return <g key={index} />
+                      if (selectedKey != null && a.key !== selectedKey) return <g key={index} />
+
+                      const dotKey = `${a.key}-${move.time}`
+                      const isSelected = selectedMove?.key === a.key && selectedMove?.time === move.time
+                      const isHovered = hoveredDot === dotKey
+                      const r = isSelected ? 7 : isHovered ? 6 : 4
+
+                      return (
+                        <g
+                          key={index}
+                          style={{ cursor: 'pointer', pointerEvents: 'all' }}
+                          onClick={() => onSelectMove?.({ key: a.key, time: move.time })}
+                          onMouseEnter={() => setHoveredDot(dotKey)}
+                          onMouseLeave={() => setHoveredDot(null)}
+                        >
+                          {/* Transparent hit target — easier to click */}
+                          <circle cx={cx} cy={cy} r={10} fill="transparent" />
+                          {/* Pulsing ring when selected */}
+                          {isSelected && (
+                            <circle cx={cx} cy={cy} r={7} fill="none" stroke={a.color} strokeWidth={1.5}>
+                              <animate attributeName="r" from="7" to="20" dur="1.5s" repeatCount="indefinite" />
+                              <animate attributeName="stroke-opacity" from="0.7" to="0" dur="1.5s" repeatCount="indefinite" />
+                            </circle>
+                          )}
+                          <circle
+                            cx={cx} cy={cy} r={r}
+                            fill={a.color}
+                            fillOpacity={isSelected ? 0.9 : isHovered ? 0.7 : 0.3}
+                            stroke={a.color}
+                            strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1}
+                          />
+                        </g>
+                      )
+                    }}
+                  />
+                )
+              })}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Move picker side panel */}
+        {moves && moves.length > 0 && (
+          <div className="w-28 flex flex-col shrink-0 border-l border-gray-800 pl-2">
+            <div className="text-[10px] text-gray-500 font-mono mb-1.5 shrink-0">异动日</div>
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-0.5">
+              {moves.map((m, i) => {
+                const meta = ASSET_BY_KEY[m.key]
+                const isSelected = selectedMove?.key === m.key && selectedMove?.time === m.time
+                const color = meta?.color ?? '#888'
+                return (
+                  <button
+                    key={i}
+                    onClick={() => onSelectMove?.({ key: m.key, time: m.time })}
+                    className="w-full flex items-center gap-1 px-1 py-0.5 rounded text-left transition-colors hover:bg-gray-800/60"
+                    style={
+                      isSelected
+                        ? { backgroundColor: `${color}18`, boxShadow: `inset 0 0 0 1px ${color}40` }
+                        : undefined
+                    }
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                    <span className="font-mono text-[10px] text-gray-400">{fmtDate(m.time)}</span>
+                    <span
+                      className="font-mono text-[10px] ml-auto shrink-0"
+                      style={{ color: m.changePct >= 0 ? '#34D399' : '#EF4444' }}
+                    >
+                      {m.changePct >= 0 ? '+' : ''}{m.changePct.toFixed(1)}%
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Interactive legend */}
