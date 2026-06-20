@@ -46,9 +46,13 @@ function nearestEvent(ts: number, events: MacroEvent[]): MacroEvent | null {
 export default function NotableMoves({
   moves,
   events = [],
+  hoveredMove,
+  onHoverMove,
 }: {
   moves: Move[]
   events?: MacroEvent[]
+  hoveredMove?: { key: string; time: number } | null
+  onHoverMove?: (m: { key: string; time: number } | null) => void
 }) {
   if (!moves?.length) {
     return (
@@ -66,7 +70,14 @@ export default function NotableMoves({
         return (
           <div
             key={`${m.key}-${m.time}-${i}`}
-            className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-gray-800/60 transition-colors min-w-0"
+            className="flex items-center gap-2 py-1.5 px-2 rounded-md transition-colors min-w-0 cursor-default"
+            style={
+              hoveredMove?.key === m.key && hoveredMove?.time === m.time
+                ? { backgroundColor: `${ASSET_BY_KEY[m.key]?.color ?? '#888'}20`, outline: `1px solid ${ASSET_BY_KEY[m.key]?.color ?? '#888'}40` }
+                : undefined
+            }
+            onMouseEnter={() => onHoverMove?.({ key: m.key, time: m.time })}
+            onMouseLeave={() => onHoverMove?.(null)}
           >
             {/* Date */}
             <span className="font-mono text-sm text-slate-300 shrink-0">

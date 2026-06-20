@@ -103,6 +103,8 @@ interface Props {
   onAnchorChange: (a: 'period' | 'ytd') => void
   selectedKey?: string | null
   onSelectKey?: (key: string) => void
+  hoveredMove?: { key: string; time: number } | null
+  onHoverMove?: (m: { key: string; time: number } | null) => void
 }
 
 export default function MultiAssetChart({
@@ -116,6 +118,8 @@ export default function MultiAssetChart({
   onAnchorChange,
   selectedKey,
   onSelectKey,
+  hoveredMove,
+  onHoverMove,
 }: Props) {
   const [hidden, setHidden] = useState<Set<string>>(new Set())
 
@@ -262,16 +266,20 @@ export default function MultiAssetChart({
               const y = yAt.get(`${m.time}:${m.key}`)
               if (y == null) return null
               const color = ASSET_BY_KEY[m.key]?.color
+              const isHot = hoveredMove?.key === m.key && hoveredMove?.time === m.time
               return (
                 <ReferenceDot
                   key={`${m.key}-${m.time}-${i}`}
                   x={m.time}
                   y={y}
-                  r={4}
+                  r={isHot ? 7 : 4}
                   fill={color}
-                  fillOpacity={0.3}
+                  fillOpacity={isHot ? 0.85 : 0.3}
                   stroke={color}
-                  strokeWidth={1.5}
+                  strokeWidth={isHot ? 2 : 1.5}
+                  style={{ cursor: 'pointer' }}
+                  onMouseEnter={() => onHoverMove?.({ key: m.key, time: m.time })}
+                  onMouseLeave={() => onHoverMove?.(null)}
                 />
               )
             })}

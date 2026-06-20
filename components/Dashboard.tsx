@@ -48,6 +48,7 @@ export default function Dashboard() {
   const [anchor, setAnchor]         = useState<'period' | 'ytd'>('ytd')
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null)
+  const [hoveredMove, setHoveredMove] = useState<{ key: string; time: number } | null>(null)
 
   const { data: market, isLoading: marketLoading } = useSWR<MarketAsset[]>(
     '/api/market',
@@ -205,6 +206,8 @@ export default function Dashboard() {
               onAnchorChange={setAnchor}
               selectedKey={selectedAsset}
               onSelectKey={toggleAsset}
+              hoveredMove={hoveredMove}
+              onHoverMove={setHoveredMove}
             />
           </div>
 
@@ -253,7 +256,12 @@ export default function Dashboard() {
               Analyzing…
             </div>
           ) : (
-            <NotableMoves moves={moves} events={allEvents} />
+            <NotableMoves
+            moves={moves}
+            events={allEvents}
+            hoveredMove={hoveredMove}
+            onHoverMove={setHoveredMove}
+          />
           )}
         </div>
 
