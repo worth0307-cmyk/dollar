@@ -206,7 +206,10 @@ export async function fetchFinnhubEvents(token: string): Promise<{
     `https://finnhub.io/api/v1/calendar/economic?from=${from}&to=${to}`,
     { headers: { 'X-Finnhub-Token': token } }
   )
-  if (!res.ok) throw new Error(`Finnhub ${res.status}`)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Finnhub ${res.status}: ${body.slice(0, 200)}`)
+  }
 
   const json = await res.json()
   const raw: FinnhubEvent[] = json.economicCalendar ?? []
