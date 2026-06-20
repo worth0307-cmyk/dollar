@@ -6,6 +6,8 @@ export interface MacroEvent {
   assets: string[]    // keys: dxy | btc | brent | gold | sp500
   type: 'past' | 'upcoming'
   url?: string        // link to official source or news coverage
+  beat?: string       // market impact if data beats expectations
+  miss?: string       // market impact if data misses expectations
 }
 
 // ─── Past Events ──────────────────────────────────────────────────────────────
@@ -202,6 +204,8 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'sp500', 'gold'],
     type: 'upcoming',
     url: 'https://www.bls.gov/schedule/news_release/cpi.htm',
+    beat: 'CPI高于预期（通胀顽固）→ DXY↑，金价承压，美股回落，9月降息概率骤降',
+    miss: 'CPI低于预期（通胀降温）→ DXY↓，黄金+美股走强，9月降息概率升温',
   },
   {
     date: '2026-07-30',
@@ -211,6 +215,8 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'sp500', 'gold', 'brent'],
     type: 'upcoming',
     url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+    beat: '鸽派惊喜/降息落地 → DXY↓，黄金+美股+BTC齐升，风险偏好回暖',
+    miss: '继续按兵不动+措辞偏鹰 → DXY↑，金价承压，美股震荡，降息预期再延后',
   },
   {
     date: '2026-08-13',
@@ -220,6 +226,8 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'sp500', 'gold'],
     type: 'upcoming',
     url: 'https://www.bls.gov/schedule/news_release/cpi.htm',
+    beat: 'CPI超预期 → DXY↑，鲍威尔讲话或偏鹰，金价+美股承压',
+    miss: '通胀继续降温 → DXY↓，黄金+美股走强，Jackson Hole鸽派预期升温',
   },
   {
     date: '2026-08-21',
@@ -229,6 +237,8 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'sp500', 'gold', 'btc'],
     type: 'upcoming',
     url: 'https://www.kansascityfed.org/research/jackson-hole-economic-symposium/',
+    beat: '鲍威尔明确降息信号 → DXY大跌，黄金+美股+BTC飙升，全球风险偏好提振',
+    miss: '措辞审慎，不给降息承诺 → DXY↑，黄金震荡，美股回调，市场失望',
   },
   {
     date: '2026-09-11',
@@ -238,6 +248,8 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'sp500', 'gold'],
     type: 'upcoming',
     url: 'https://www.bls.gov/schedule/news_release/cpi.htm',
+    beat: 'CPI再超预期 → DXY↑，9月降息概率骤降至<25%，美股+金价承压',
+    miss: '通胀继续走低 → DXY↓，9月降息几乎锁定，金价+美股强势',
   },
   {
     date: '2026-09-17',
@@ -247,6 +259,8 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'sp500', 'gold', 'brent', 'btc'],
     type: 'upcoming',
     url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+    beat: '降息25bp落地 → DXY↓，黄金+美股+BTC涨，风险资产全面走强',
+    miss: '继续暂停/措辞强硬 → DXY↑，金价小幅承压，美股震荡调整',
   },
   {
     date: '2026-10-14',
@@ -256,6 +270,8 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     assets: ['brent', 'dxy'],
     type: 'upcoming',
     url: 'https://www.opec.org/opec_web/en/press_room/press_releases.htm',
+    beat: '推迟增产/维持减产 → 布伦特反弹，能源股走强，通胀预期小升',
+    miss: '宣布放量增产 → 布伦特下跌，能源股承压，通胀预期降温利于降息',
   },
   {
     date: '2026-10-29',
@@ -265,6 +281,8 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'sp500', 'gold'],
     type: 'upcoming',
     url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+    beat: '再次降息或明确鸽派信号 → DXY↓，风险资产全线走强',
+    miss: '措辞谨慎/暂停 → DXY↑，市场情绪偏弱，年末走势存疑',
   },
   {
     date: '2026-11-01',
@@ -274,6 +292,8 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'brent', 'gold', 'sp500', 'btc'],
     type: 'upcoming',
     url: 'https://ustr.gov/',
+    beat: '续签协议/进一步降税 → 全球风险资产走强，BTC+美股+布伦特反弹，DXY承压',
+    miss: '谈判破裂/加税 → 黄金避险大涨，美股+BTC下跌，贸易战预期重燃',
   },
   {
     date: '2026-12-10',
@@ -283,5 +303,7 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'sp500', 'gold', 'brent', 'btc'],
     type: 'upcoming',
     url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+    beat: '降息+点阵图显示2027年多次降息 → DXY持续下行，黄金+美股强势收官',
+    miss: '维持不变+鹰派点阵图 → DXY↑，年末风险资产普遍回调',
   },
 ]

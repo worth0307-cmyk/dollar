@@ -39,7 +39,7 @@ export default function PriceCard({
   return (
     <div
       onClick={onSelect}
-      className="card-glow rounded-xl bg-gray-900/80 border border-gray-700/60 p-4 flex flex-col gap-2 backdrop-blur-sm transition-all"
+      className="card-glow rounded-xl bg-gray-900/80 border border-gray-700/60 p-4 flex flex-col gap-2 backdrop-blur-sm transition-all h-full"
       style={
         {
           borderTopColor: color,

@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef, useEffect } from 'react'
 import { ASSET_BY_KEY } from '@/lib/assets'
 import type { MacroEvent } from '@/lib/events'
 
@@ -46,14 +47,23 @@ function nearestEvent(ts: number, events: MacroEvent[]): MacroEvent | null {
 export default function NotableMoves({
   moves,
   events = [],
-  hoveredMove,
-  onHoverMove,
+  selectedMove,
+  onSelectMove,
 }: {
   moves: Move[]
   events?: MacroEvent[]
-  hoveredMove?: { key: string; time: number } | null
-  onHoverMove?: (m: { key: string; time: number } | null) => void
+  selectedMove?: { key: string; time: number } | null
+  onSelectMove?: (m: { key: string; time: number }) => void
 }) {
+  const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+
+  useEffect(() => {
+    if (!selectedMove) return
+    const key = `${selectedMove.key}-${selectedMove.time}`
+    const el = rowRefs.current.get(key)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [selectedMove])
+
   if (!moves?.length) {
     return (
       <div className="text-sm text-slate-500 py-6 text-center">此区间无明显异动</div>
@@ -66,18 +76,27 @@ export default function NotableMoves({
         const meta = ASSET_BY_KEY[m.key]
         const up = m.changePct >= 0
         const near = nearestEvent(m.time, events)
+        const rowKey = `${m.key}-${m.time}`
+        const isSelected = selectedMove?.key === m.key && selectedMove?.time === m.time
+        const color = meta?.color ?? '#888'
 
         return (
           <div
-            key={`${m.key}-${m.time}-${i}`}
-            className="flex items-center gap-2 py-1.5 px-2 rounded-md transition-colors min-w-0 cursor-default"
+            key={`${rowKey}-${i}`}
+            ref={(el) => {
+              if (el) rowRefs.current.set(rowKey, el)
+              else rowRefs.current.delete(rowKey)
+            }}
+            className="flex items-center gap-2 py-1.5 px-2 rounded-md transition-colors min-w-0 cursor-pointer hover:bg-gray-800/60"
             style={
-              hoveredMove?.key === m.key && hoveredMove?.time === m.time
-                ? { backgroundColor: `${ASSET_BY_KEY[m.key]?.color ?? '#888'}20`, outline: `1px solid ${ASSET_BY_KEY[m.key]?.color ?? '#888'}40` }
+              isSelected
+                ? {
+                    backgroundColor: `${color}18`,
+                    boxShadow: `inset 0 0 0 1px ${color}40`,
+                  }
                 : undefined
             }
-            onMouseEnter={() => onHoverMove?.({ key: m.key, time: m.time })}
-            onMouseLeave={() => onHoverMove?.(null)}
+            onClick={() => onSelectMove?.({ key: m.key, time: m.time })}
           >
             {/* Date */}
             <span className="font-mono text-sm text-slate-300 shrink-0">
@@ -93,7 +112,7 @@ export default function NotableMoves({
               {up ? '+' : ''}{m.changePct.toFixed(2)}%
             </span>
 
-            {/* Nearest event — fills the red-box area between % and σ */}
+            {/* Nearest event */}
             <div className="flex-1 min-w-0 mx-1">
               {near && (
                 <div className="flex items-center gap-1 min-w-0">
@@ -113,6 +132,7 @@ export default function NotableMoves({
                       rel="noopener noreferrer"
                       className="text-gray-600 hover:text-blue-400 transition-colors text-[13px] leading-none shrink-0"
                       title="查看详情"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       ↗
                     </a>

@@ -58,6 +58,20 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
                 </span>
               ))}
             </div>
+            {(event.beat || event.miss) && (
+              <div className="mt-2 space-y-0.5">
+                {event.beat && (
+                  <div className="text-[11px] text-emerald-400/80 leading-snug">
+                    <span className="font-mono font-medium">↑ 超预期：</span>{event.beat}
+                  </div>
+                )}
+                {event.miss && (
+                  <div className="text-[11px] text-red-400/80 leading-snug">
+                    <span className="font-mono font-medium">↓ 不及预期：</span>{event.miss}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Impact badge + optional link */}

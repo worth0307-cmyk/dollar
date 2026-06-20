@@ -48,7 +48,7 @@ export default function Dashboard() {
   const [anchor, setAnchor]         = useState<'period' | 'ytd'>('ytd')
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null)
-  const [hoveredMove, setHoveredMove] = useState<{ key: string; time: number } | null>(null)
+  const [selectedMove, setSelectedMove] = useState<{ key: string; time: number } | null>(null)
 
   const { data: market, isLoading: marketLoading } = useSWR<MarketAsset[]>(
     '/api/market',
@@ -76,6 +76,11 @@ export default function Dashboard() {
 
   const toggleAsset = (key: string) =>
     setSelectedAsset((prev) => (prev === key ? null : key))
+
+  const toggleMove = (m: { key: string; time: number }) =>
+    setSelectedMove((prev) =>
+      prev?.key === m.key && prev?.time === m.time ? null : m
+    )
 
   const [now, setNow] = useState('')
   useEffect(() => {
@@ -153,7 +158,7 @@ export default function Dashboard() {
               />
             ))
           : market?.map((asset, i) => (
-              <div key={asset.key} className="animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
+              <div key={asset.key} className="animate-fade-up h-full" style={{ animationDelay: `${i * 60}ms` }}>
                 <PriceCard
                   asset={asset}
                   selected={selectedAsset === asset.key}
@@ -206,8 +211,8 @@ export default function Dashboard() {
               onAnchorChange={setAnchor}
               selectedKey={selectedAsset}
               onSelectKey={toggleAsset}
-              hoveredMove={hoveredMove}
-              onHoverMove={setHoveredMove}
+              selectedMove={selectedMove}
+              onSelectMove={toggleMove}
             />
           </div>
 
@@ -257,11 +262,11 @@ export default function Dashboard() {
             </div>
           ) : (
             <NotableMoves
-            moves={moves}
-            events={allEvents}
-            hoveredMove={hoveredMove}
-            onHoverMove={setHoveredMove}
-          />
+              moves={moves}
+              events={allEvents}
+              selectedMove={selectedMove}
+              onSelectMove={toggleMove}
+            />
           )}
         </div>
 

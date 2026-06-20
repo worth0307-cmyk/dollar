@@ -103,8 +103,8 @@ interface Props {
   onAnchorChange: (a: 'period' | 'ytd') => void
   selectedKey?: string | null
   onSelectKey?: (key: string) => void
-  hoveredMove?: { key: string; time: number } | null
-  onHoverMove?: (m: { key: string; time: number } | null) => void
+  selectedMove?: { key: string; time: number } | null
+  onSelectMove?: (m: { key: string; time: number }) => void
 }
 
 export default function MultiAssetChart({
@@ -118,10 +118,11 @@ export default function MultiAssetChart({
   onAnchorChange,
   selectedKey,
   onSelectKey,
-  hoveredMove,
-  onHoverMove,
+  selectedMove,
+  onSelectMove,
 }: Props) {
   const [hidden, setHidden] = useState<Set<string>>(new Set())
+  const [hoveredDot, setHoveredDot] = useState<string | null>(null)
 
   const toggle = (key: string) =>
     setHidden((prev) => {
@@ -266,20 +267,23 @@ export default function MultiAssetChart({
               const y = yAt.get(`${m.time}:${m.key}`)
               if (y == null) return null
               const color = ASSET_BY_KEY[m.key]?.color
-              const isHot = hoveredMove?.key === m.key && hoveredMove?.time === m.time
+              const dotKey = `${m.key}-${m.time}`
+              const isSelected = selectedMove?.key === m.key && selectedMove?.time === m.time
+              const isHovered = hoveredDot === dotKey
               return (
                 <ReferenceDot
                   key={`${m.key}-${m.time}-${i}`}
                   x={m.time}
                   y={y}
-                  r={isHot ? 7 : 4}
+                  r={isSelected ? 7 : isHovered ? 6 : 4}
                   fill={color}
-                  fillOpacity={isHot ? 0.85 : 0.3}
+                  fillOpacity={isSelected ? 0.9 : isHovered ? 0.7 : 0.3}
                   stroke={color}
-                  strokeWidth={isHot ? 2 : 1.5}
+                  strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1}
                   style={{ cursor: 'pointer' }}
-                  onMouseEnter={() => onHoverMove?.({ key: m.key, time: m.time })}
-                  onMouseLeave={() => onHoverMove?.(null)}
+                  onClick={() => onSelectMove?.({ key: m.key, time: m.time })}
+                  onMouseEnter={() => setHoveredDot(dotKey)}
+                  onMouseLeave={() => setHoveredDot(null)}
                 />
               )
             })}
