@@ -60,10 +60,24 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
             </div>
           </div>
 
-          {/* Impact badge — mr-1 keeps it clear of the scrollbar */}
-          <span className={`text-[11px] px-1.5 py-0.5 rounded shrink-0 font-medium mr-1 ${IMPACT_STYLE[event.impact]}`}>
-            {IMPACT_LABEL[event.impact]}
-          </span>
+          {/* Impact badge + optional link */}
+          <div className="flex items-center gap-1.5 shrink-0 mr-1">
+            <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${IMPACT_STYLE[event.impact]}`}>
+              {IMPACT_LABEL[event.impact]}
+            </span>
+            {event.url && (
+              <a
+                href={event.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-gray-600 hover:text-blue-400 transition-colors text-[13px] leading-none"
+                title="查看详情"
+              >
+                ↗
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </div>

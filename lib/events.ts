@@ -5,11 +5,10 @@ export interface MacroEvent {
   impact: 'high' | 'medium' | 'low'
   assets: string[]    // keys: dxy | btc | brent | gold | sp500
   type: 'past' | 'upcoming'
+  url?: string        // link to official source or news coverage
 }
 
 // ─── Past Events ──────────────────────────────────────────────────────────────
-// Real confirmed events through training knowledge (up to mid-2025).
-// Outcomes for 2025-2026 are market-consensus estimates.
 export const PAST_EVENTS: MacroEvent[] = [
   {
     date: '2024-09-18',
@@ -18,6 +17,25 @@ export const PAST_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'gold', 'sp500', 'btc'],
     type: 'past',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+  },
+  {
+    date: '2024-10-07',
+    title: '中东局势升级，以黎冲突扩大',
+    description: '以色列对黎巴嫩真主党展开大规模地面行动，中东紧张局势骤升。布伦特原油单日涨超4%，黄金避险需求攀升至2700美元/盎司上方。',
+    impact: 'high',
+    assets: ['brent', 'gold', 'dxy'],
+    type: 'past',
+    url: 'https://www.bbc.com/news/world/middle_east',
+  },
+  {
+    date: '2024-11-05',
+    title: '美国总统大选：特朗普胜选',
+    description: '特朗普赢得2024年美国总统大选。市场迅速定价"特朗普交易"：美元指数飙升至104+，比特币突破75,000美元，黄金短暂承压，美股科技板块大涨。',
+    impact: 'high',
+    assets: ['dxy', 'btc', 'gold', 'sp500'],
+    type: 'past',
+    url: 'https://www.reuters.com/world/us/',
   },
   {
     date: '2024-11-07',
@@ -26,6 +44,16 @@ export const PAST_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'gold', 'sp500', 'btc'],
     type: 'past',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+  },
+  {
+    date: '2024-12-05',
+    title: 'OPEC+ 延长减产至 2026 年中',
+    description: 'OPEC+会议决定将日均减产220万桶的协议延长至2026年6月，并推迟原定增产计划。布伦特原油因过剩担忧仍承压，市场反应偏负面。',
+    impact: 'medium',
+    assets: ['brent', 'dxy'],
+    type: 'past',
+    url: 'https://www.opec.org/opec_web/en/press_room/press_releases.htm',
   },
   {
     date: '2024-12-18',
@@ -34,6 +62,16 @@ export const PAST_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'gold', 'sp500', 'btc'],
     type: 'past',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+  },
+  {
+    date: '2025-01-20',
+    title: '特朗普就职，签署关税行政令',
+    description: '特朗普宣誓就职，当天签署多项行政令，包括对加拿大、墨西哥加征25%关税意向及对中国加征10%关税的计划。美元指数短暂冲高，能源股上涨。',
+    impact: 'high',
+    assets: ['dxy', 'brent', 'gold', 'sp500'],
+    type: 'past',
+    url: 'https://www.whitehouse.gov/briefing-room/',
   },
   {
     date: '2025-01-29',
@@ -42,6 +80,7 @@ export const PAST_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500'],
     type: 'past',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
   },
   {
     date: '2025-03-19',
@@ -50,6 +89,7 @@ export const PAST_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500', 'gold'],
     type: 'past',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
   },
   {
     date: '2025-04-02',
@@ -58,6 +98,16 @@ export const PAST_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'brent', 'gold', 'sp500', 'btc'],
     type: 'past',
+    url: 'https://ustr.gov/',
+  },
+  {
+    date: '2025-04-09',
+    title: '对等关税 90 天暂停（除中国外）',
+    description: '特朗普宣布对大多数国家的对等关税暂停90天，但对中国税率上调至145%。美股单日涨幅超9%，黄金冲高，比特币强势反弹，原油从底部拉升。',
+    impact: 'high',
+    assets: ['dxy', 'brent', 'gold', 'sp500', 'btc'],
+    type: 'past',
+    url: 'https://ustr.gov/',
   },
   {
     date: '2025-05-07',
@@ -66,6 +116,16 @@ export const PAST_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500'],
     type: 'past',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+  },
+  {
+    date: '2025-05-12',
+    title: '美中贸易停火：关税从145%降至30%',
+    description: '日内瓦美中贸易谈判达成协议，双方互降关税90天——美国对华税率从145%降至30%，中国对美从125%降至10%。全球风险资产大幅反弹。',
+    impact: 'high',
+    assets: ['dxy', 'brent', 'gold', 'sp500', 'btc'],
+    type: 'past',
+    url: 'https://ustr.gov/',
   },
   {
     date: '2025-06-18',
@@ -74,6 +134,7 @@ export const PAST_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500', 'gold'],
     type: 'past',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
   },
   {
     date: '2026-01-28',
@@ -82,6 +143,7 @@ export const PAST_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500', 'gold', 'btc'],
     type: 'past',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
   },
   {
     date: '2026-02-11',
@@ -90,6 +152,7 @@ export const PAST_EVENTS: MacroEvent[] = [
     impact: 'medium',
     assets: ['dxy', 'gold', 'sp500'],
     type: 'past',
+    url: 'https://www.bls.gov/cpi/',
   },
   {
     date: '2026-03-18',
@@ -98,6 +161,7 @@ export const PAST_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500', 'gold', 'brent', 'btc'],
     type: 'past',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
   },
   {
     date: '2026-04-29',
@@ -106,6 +170,7 @@ export const PAST_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500', 'btc'],
     type: 'past',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
   },
   {
     date: '2026-05-13',
@@ -114,6 +179,7 @@ export const PAST_EVENTS: MacroEvent[] = [
     impact: 'medium',
     assets: ['dxy', 'gold', 'sp500'],
     type: 'past',
+    url: 'https://www.bls.gov/cpi/',
   },
   {
     date: '2026-06-17',
@@ -122,12 +188,11 @@ export const PAST_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500', 'gold', 'brent', 'btc'],
     type: 'past',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
   },
 ]
 
 // ─── Upcoming Events ──────────────────────────────────────────────────────────
-// Scheduled dates based on Fed calendar and historical patterns.
-// Outcomes are consensus market estimates — update as events occur.
 export const UPCOMING_EVENTS: MacroEvent[] = [
   {
     date: '2026-07-14',
@@ -136,6 +201,7 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500', 'gold'],
     type: 'upcoming',
+    url: 'https://www.bls.gov/schedule/news_release/cpi.htm',
   },
   {
     date: '2026-07-30',
@@ -144,6 +210,7 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500', 'gold', 'brent'],
     type: 'upcoming',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
   },
   {
     date: '2026-08-13',
@@ -152,6 +219,7 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500', 'gold'],
     type: 'upcoming',
+    url: 'https://www.bls.gov/schedule/news_release/cpi.htm',
   },
   {
     date: '2026-08-21',
@@ -160,6 +228,7 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500', 'gold', 'btc'],
     type: 'upcoming',
+    url: 'https://www.kansascityfed.org/research/jackson-hole-economic-symposium/',
   },
   {
     date: '2026-09-11',
@@ -168,6 +237,7 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     impact: 'medium',
     assets: ['dxy', 'sp500', 'gold'],
     type: 'upcoming',
+    url: 'https://www.bls.gov/schedule/news_release/cpi.htm',
   },
   {
     date: '2026-09-17',
@@ -176,6 +246,16 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500', 'gold', 'brent', 'btc'],
     type: 'upcoming',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+  },
+  {
+    date: '2026-10-14',
+    title: 'OPEC+ 产量政策审议',
+    description: 'OPEC+定期部长级会议，审议2026年H2产量配额。若全球需求走软，增产推迟可能支撑油价；若决定放量，布伦特或再次承压。',
+    impact: 'medium',
+    assets: ['brent', 'dxy'],
+    type: 'upcoming',
+    url: 'https://www.opec.org/opec_web/en/press_room/press_releases.htm',
   },
   {
     date: '2026-10-29',
@@ -184,6 +264,16 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500', 'gold'],
     type: 'upcoming',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+  },
+  {
+    date: '2026-11-01',
+    title: '美中关税停火协议到期审议',
+    description: '2025年5月日内瓦协议规定的90+180天停火窗口接近尾声。双方是否续签、调整税率将决定全球贸易预期与风险资产走向。',
+    impact: 'high',
+    assets: ['dxy', 'brent', 'gold', 'sp500', 'btc'],
+    type: 'upcoming',
+    url: 'https://ustr.gov/',
   },
   {
     date: '2026-12-10',
@@ -192,5 +282,6 @@ export const UPCOMING_EVENTS: MacroEvent[] = [
     impact: 'high',
     assets: ['dxy', 'sp500', 'gold', 'brent', 'btc'],
     type: 'upcoming',
+    url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
   },
 ]

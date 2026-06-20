@@ -106,6 +106,17 @@ export default function NotableMoves({
                   <span className="text-xs text-gray-100 truncate" title={near.title}>
                     {near.title}
                   </span>
+                  {near.url && (
+                    <a
+                      href={near.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-600 hover:text-blue-400 transition-colors text-[13px] leading-none shrink-0"
+                      title="查看详情"
+                    >
+                      ↗
+                    </a>
+                  )}
                 </div>
               )}
             </div>
