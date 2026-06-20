@@ -239,7 +239,7 @@ export default function MultiAssetChart({
               axisLine={false}
               width={8}
             />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#374151', strokeWidth: 1, fill: 'none' }} />
 
             {ASSETS.map((a) => {
               const isSelected = selectedKey === a.key
@@ -266,24 +266,47 @@ export default function MultiAssetChart({
               if (selectedKey != null && m.key !== selectedKey) return null
               const y = yAt.get(`${m.time}:${m.key}`)
               if (y == null) return null
-              const color = ASSET_BY_KEY[m.key]?.color
+              const color = ASSET_BY_KEY[m.key]?.color ?? '#888'
               const dotKey = `${m.key}-${m.time}`
               const isSelected = selectedMove?.key === m.key && selectedMove?.time === m.time
               const isHovered = hoveredDot === dotKey
+              const r = isSelected ? 7 : isHovered ? 6 : 4
               return (
                 <ReferenceDot
                   key={`${m.key}-${m.time}-${i}`}
                   x={m.time}
                   y={y}
-                  r={isSelected ? 7 : isHovered ? 6 : 4}
-                  fill={color}
-                  fillOpacity={isSelected ? 0.9 : isHovered ? 0.7 : 0.3}
-                  stroke={color}
-                  strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => onSelectMove?.({ key: m.key, time: m.time })}
-                  onMouseEnter={() => setHoveredDot(dotKey)}
-                  onMouseLeave={() => setHoveredDot(null)}
+                  r={0}
+                  fill="none"
+                  stroke="none"
+                  shape={((props: any) => {
+                    const { cx, cy } = props
+                    return (
+                      <g
+                        style={{ cursor: 'pointer', pointerEvents: 'all' }}
+                        onClick={() => onSelectMove?.({ key: m.key, time: m.time })}
+                        onMouseEnter={() => setHoveredDot(dotKey)}
+                        onMouseLeave={() => setHoveredDot(null)}
+                      >
+                        {/* Invisible hit area so small dots are easier to click */}
+                        <circle cx={cx} cy={cy} r={10} fill="transparent" />
+                        {/* Pulsing ring when selected */}
+                        {isSelected && (
+                          <circle cx={cx} cy={cy} r={7} fill="none" stroke={color} strokeWidth={1.5}>
+                            <animate attributeName="r" from="7" to="20" dur="1.5s" repeatCount="indefinite" />
+                            <animate attributeName="stroke-opacity" from="0.7" to="0" dur="1.5s" repeatCount="indefinite" />
+                          </circle>
+                        )}
+                        <circle
+                          cx={cx} cy={cy} r={r}
+                          fill={color}
+                          fillOpacity={isSelected ? 0.9 : isHovered ? 0.7 : 0.3}
+                          stroke={color}
+                          strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1}
+                        />
+                      </g>
+                    )
+                  }) as any}
                 />
               )
             })}

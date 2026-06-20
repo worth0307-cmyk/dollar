@@ -18,6 +18,9 @@ const IMPACT_STYLE: Record<string, string> = {
 const IMPACT_LABEL: Record<string, string> = { high: '重大', medium: '中等', low: '次要' }
 
 function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+  const hasBeatMiss = !!(event.beat || event.miss)
+
   return (
     <div className="flex gap-3">
       {/* Timeline dot */}
@@ -34,7 +37,10 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
 
       {/* Content row: [title block] [detail] [badge] */}
       <div className="pb-4 flex-1 min-w-0">
-        <div className="flex items-start gap-3">
+        <div
+          className={`flex items-start gap-3 ${hasBeatMiss ? 'cursor-pointer select-none' : ''}`}
+          onClick={hasBeatMiss ? () => setExpanded((e) => !e) : undefined}
+        >
           {/* Title block — fixed width so detail sits to its right */}
           <div className="w-44 shrink-0">
             <span className="text-[11px] font-mono text-slate-300 block">{fmtDate(event.date)}</span>
@@ -58,15 +64,15 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
                 </span>
               ))}
             </div>
-            {(event.beat || event.miss) && (
+            {expanded && hasBeatMiss && (
               <div className="mt-2 space-y-0.5">
                 {event.beat && (
-                  <div className="text-[11px] text-emerald-400/80 leading-snug">
+                  <div className="text-xs text-emerald-400/80 leading-snug">
                     <span className="font-mono font-medium">↑ 超预期：</span>{event.beat}
                   </div>
                 )}
                 {event.miss && (
-                  <div className="text-[11px] text-red-400/80 leading-snug">
+                  <div className="text-xs text-red-400/80 leading-snug">
                     <span className="font-mono font-medium">↓ 不及预期：</span>{event.miss}
                   </div>
                 )}
@@ -74,8 +80,13 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
             )}
           </div>
 
-          {/* Impact badge + optional link */}
+          {/* Impact badge + expand hint + optional link */}
           <div className="flex items-center gap-1.5 shrink-0 mr-1">
+            {hasBeatMiss && (
+              <span className="text-gray-600 text-[10px] leading-none">
+                {expanded ? '▲' : '▼'}
+              </span>
+            )}
             <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${IMPACT_STYLE[event.impact]}`}>
               {IMPACT_LABEL[event.impact]}
             </span>
