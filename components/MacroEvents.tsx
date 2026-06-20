@@ -190,7 +190,7 @@ export default function MacroEvents({ past, upcoming }: Props) {
       </div>
 
       <p className="text-[10px] text-gray-600 mt-2">
-        数据来源：Fed日历 / 市场预期。未来事件为估算，可在 <code className="text-gray-500">lib/events.ts</code> 中更新。
+        数据来源：ForexFactory 经济日历（每周自动更新，含实际值与市场预期，自动判定超预期/不及预期）。接口不可用时回退至 <code className="text-gray-500">lib/events.ts</code> 静态数据。
       </p>
     </div>
   )

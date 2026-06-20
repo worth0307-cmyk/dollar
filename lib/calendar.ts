@@ -1,14 +1,19 @@
 import type { MacroEvent } from './events'
 
-interface FinnhubEvent {
-  actual: number | null
-  country: string
-  estimate: number | null
-  event: string
-  impact: string | number
-  prev: number | null
-  time: string
-  unit: string
+// ForexFactory weekly economic calendar — free, no API key required.
+// Feed: https://nfs.faireconomy.media/ff_calendar_thisweek.json
+// Each entry: { title, country (currency code e.g. "USD"), date (ISO w/ tz),
+//   impact ("High"|"Medium"|"Low"|"Holiday"), forecast, previous, actual }
+// Values are strings with units, e.g. "3.2%", "256K", "<5.50%", or "".
+interface FFEvent {
+  title: string
+  country?: string
+  currency?: string
+  date: string
+  impact: string
+  forecast?: string
+  previous?: string
+  actual?: string
 }
 
 type EventTemplate = {
@@ -18,8 +23,8 @@ type EventTemplate = {
   beat: string
   miss: string
   url: string
-  // 'positive' = actual > estimate means beat; 'negative' = actual < estimate means beat
-  // undefined = no numeric comparison available (e.g. Jackson Hole speech)
+  // 'positive' = actual > forecast means beat; 'negative' = actual < forecast means beat
+  // undefined = no numeric comparison available (e.g. a speech)
   beatDirection?: 'positive' | 'negative'
 }
 
@@ -61,7 +66,7 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
     },
   },
   {
-    keywords: ['nonfarm', 'non-farm', 'nfp', 'payroll'],
+    keywords: ['nonfarm', 'non-farm', 'nfp', 'payroll', 'employment change'],
     template: {
       title: '非农就业数据',
       description: '美国非农就业报告，反映劳动市场健康程度，是Fed双重使命的核心指标之一。',
@@ -85,15 +90,15 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
     },
   },
   {
-    keywords: ['jackson hole', 'economic symposium'],
+    keywords: ['jackson hole', 'economic symposium', 'fed chair', 'powell speaks'],
     template: {
-      title: 'Jackson Hole 全球央行年会',
-      description: '美联储主席在怀俄明州的讲话通常为下半年政策定基调，历史上多次出现市场异动。',
+      title: '美联储主席讲话',
+      description: '美联储主席公开讲话常为政策定基调，历史上多次引发市场异动。',
       assets: ['dxy', 'sp500', 'gold', 'btc'],
-      beat: '鲍威尔明确降息信号 → DXY大跌，黄金+美股+BTC飙升',
+      beat: '明确降息信号 → DXY大跌，黄金+美股+BTC飙升',
       miss: '措辞审慎，不给降息承诺 → DXY↑，黄金震荡，美股回调',
-      url: 'https://www.kansascityfed.org/research/jackson-hole-economic-symposium/',
-      // no beatDirection: speech has no numeric actual vs estimate
+      url: 'https://www.federalreserve.gov/newsevents/speeches.htm',
+      // no beatDirection: speech has no numeric actual vs forecast
     },
   },
   {
@@ -109,7 +114,7 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
     },
   },
   {
-    keywords: ['unemployment rate', 'jobless claims', 'initial jobless'],
+    keywords: ['unemployment rate', 'unemployment claims', 'jobless claims', 'initial jobless'],
     template: {
       title: '就业市场数据',
       description: '美国失业率/申请失业金人数，与非农一同构成Fed双重使命核心指标。',
@@ -117,7 +122,7 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: '失业率低于预期（就业强劲）→ DXY↑，降息预期降温，美股短期震荡',
       miss: '失业率高于预期（就业走弱）→ DXY↓，降息预期升温，避险情绪升',
       url: 'https://www.bls.gov/news.release/empsit.htm',
-      beatDirection: 'negative', // lower unemployment = better = beat
+      beatDirection: 'negative', // lower unemployment/claims = better = beat
     },
   },
   {
@@ -154,105 +159,103 @@ function findTemplate(eventName: string): EventTemplate | null {
   return null
 }
 
-function mapImpact(raw: string | number): 'high' | 'medium' | 'low' {
-  const v = String(raw)
-  if (v === '3') return 'high'
-  if (v === '2') return 'medium'
+function mapImpact(raw: string): 'high' | 'medium' | 'low' {
+  const v = raw.toLowerCase()
+  if (v === 'high') return 'high'
+  if (v === 'medium') return 'medium'
   return 'low'
+}
+
+// Parse the leading numeric value out of a ForexFactory string like
+// "3.2%", "256K", "<5.50%", "-0.1%". Returns null when empty/non-numeric.
+function parseNum(s: string | null | undefined): number | null {
+  if (s == null) return null
+  const m = String(s).match(/-?\d+(\.\d+)?/)
+  return m ? parseFloat(m[0]) : null
 }
 
 function buildDescription(
   base: string,
-  actual: number | null,
-  estimate: number | null,
-  prev: number | null,
-  unit: string
+  actualRaw: string | undefined,
+  forecastRaw: string | undefined,
+  prevRaw: string | undefined,
+  showActual: boolean
 ): string {
   let desc = base
-  if (actual != null) {
-    desc += ` 实际值：${actual}${unit}`
-    if (estimate != null) {
-      const diff = actual - estimate
-      const sign = diff >= 0 ? '+' : ''
-      desc += `（市场预期 ${estimate}${unit}，偏差 ${sign}${diff.toFixed(2)}${unit}）`
-    }
-    if (prev != null) desc += `，前值 ${prev}${unit}`
+  if (showActual && actualRaw) {
+    desc += ` 实际值：${actualRaw}`
+    const extras: string[] = []
+    if (forecastRaw) extras.push(`市场预期 ${forecastRaw}`)
+    if (prevRaw) extras.push(`前值 ${prevRaw}`)
+    if (extras.length) desc += `（${extras.join('，')}）`
     desc += '。'
-  } else if (estimate != null) {
-    desc += ` 市场预期 ${estimate}${unit}`
-    if (prev != null) desc += `，前值 ${prev}${unit}`
+  } else if (forecastRaw) {
+    desc += ` 市场预期 ${forecastRaw}`
+    if (prevRaw) desc += `，前值 ${prevRaw}`
     desc += '。'
   }
   return desc
 }
 
-export async function fetchFinnhubEvents(token: string): Promise<{
+export async function fetchEconomicCalendar(): Promise<{
   past: MacroEvent[]
   upcoming: MacroEvent[]
 }> {
-  const today = new Date()
-  const todayStr = today.toISOString().slice(0, 10)
-
-  const pastFrom = new Date(today)
-  pastFrom.setDate(pastFrom.getDate() - 90)
-
-  const upcomingTo = new Date(today)
-  upcomingTo.setDate(upcomingTo.getDate() + 180)
-
-  const from = pastFrom.toISOString().slice(0, 10)
-  const to = upcomingTo.toISOString().slice(0, 10)
-
-  const res = await fetch(
-    `https://finnhub.io/api/v1/calendar/economic?from=${from}&to=${to}`,
-    { headers: { 'X-Finnhub-Token': token } }
-  )
+  const res = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
+    headers: {
+      // ForexFactory blocks non-browser user agents.
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      Accept: 'application/json,text/plain,*/*',
+    },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`Finnhub ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`ForexFactory ${res.status}: ${body.slice(0, 200)}`)
   }
 
-  const json = await res.json()
-  const raw: FinnhubEvent[] = json.economicCalendar ?? []
+  const raw: FFEvent[] = await res.json()
+  const now = Date.now()
 
   const past: MacroEvent[] = []
   const upcoming: MacroEvent[] = []
   const seen = new Set<string>()
 
   for (const e of raw) {
-    if (e.country !== 'US') continue
-    const impact = mapImpact(e.impact)
-    if (impact === 'low') continue
+    const cur = e.country ?? e.currency
+    if (cur !== 'USD') continue
 
-    const template = findTemplate(e.event)
+    const impact = mapImpact(e.impact)
+    if (impact === 'low') continue // skip Low + Holiday
+
+    const template = findTemplate(e.title)
     if (!template) continue
 
-    const date = e.time.slice(0, 10)
+    const date = e.date.slice(0, 10)
     const key = `${date}::${template.title}`
     if (seen.has(key)) continue
     seen.add(key)
 
-    const isPast = date <= todayStr
-    const unit = e.unit ?? ''
+    const eventTime = new Date(e.date).getTime()
+    const actualNum = parseNum(e.actual)
+    // An event is "past" once it has fired; presence of an actual value confirms it.
+    const isPast = actualNum != null || eventTime <= now
 
-    // Auto-detect beat/miss for past events that have both actual and estimate
+    // Auto-detect beat/miss for past events with both actual and forecast.
     let outcome: 'beat' | 'miss' | undefined
-    if (isPast && e.actual != null && e.estimate != null && template.beatDirection) {
-      const diff = e.actual - e.estimate
-      const beatWhen = template.beatDirection === 'positive' ? diff > 0 : diff < 0
-      // Treat negligible differences (<0.01) as neither beat nor miss
-      if (Math.abs(diff) >= 0.01) outcome = beatWhen ? 'beat' : 'miss'
+    const forecastNum = parseNum(e.forecast)
+    if (isPast && actualNum != null && forecastNum != null && template.beatDirection) {
+      const diff = actualNum - forecastNum
+      if (Math.abs(diff) >= 0.01) {
+        const beatWhen = template.beatDirection === 'positive' ? diff > 0 : diff < 0
+        outcome = beatWhen ? 'beat' : 'miss'
+      }
     }
 
     const event: MacroEvent = {
       date,
       title: template.title,
-      description: buildDescription(
-        template.description,
-        isPast ? e.actual : null,
-        e.estimate,
-        e.prev,
-        unit
-      ),
+      description: buildDescription(template.description, e.actual, e.forecast, e.previous, isPast),
       impact,
       assets: template.assets,
       type: isPast ? 'past' : 'upcoming',
