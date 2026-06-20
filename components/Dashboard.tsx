@@ -157,6 +157,8 @@ export default function Dashboard() {
                   asset={asset}
                   selected={selectedAsset === asset.key}
                   onSelect={() => toggleAsset(asset.key)}
+                  periodChg={stats[asset.key]?.changePct ?? null}
+                  anchorLabel={anchor === 'ytd' ? 'YTD' : '区间'}
                 />
               </div>
             ))}

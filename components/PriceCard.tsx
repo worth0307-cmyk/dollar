@@ -23,10 +23,14 @@ export default function PriceCard({
   asset,
   selected,
   onSelect,
+  periodChg,
+  anchorLabel,
 }: {
   asset: Asset
   selected?: boolean
   onSelect?: () => void
+  periodChg?: number | null
+  anchorLabel?: string
 }) {
   const meta = ASSET_BY_KEY[asset.key]
   const color = meta?.color ?? '#9CA3AF'
@@ -95,14 +99,24 @@ export default function PriceCard({
         <div className="text-2xl text-gray-700">—</div>
       )}
 
-      {/* Change */}
-      {asset.change != null && (
-        <div className={`text-xs font-mono ${up ? 'text-emerald-400' : 'text-red-400'}`}>
-          <span style={{ textShadow: up ? '0 0 8px #34D39950' : '0 0 8px #EF444450' }}>
-            {up ? '▲' : '▼'} {Math.abs(asset.change).toFixed(2)}
-          </span>
-        </div>
-      )}
+      {/* Change row: 24h absolute + period cumulative */}
+      <div className="flex items-center justify-between gap-2">
+        {asset.change != null && (
+          <div className={`text-xs font-mono ${up ? 'text-emerald-400' : 'text-red-400'}`}>
+            <span style={{ textShadow: up ? '0 0 8px #34D39950' : '0 0 8px #EF444450' }}>
+              {up ? '▲' : '▼'} {Math.abs(asset.change).toFixed(2)}
+            </span>
+          </div>
+        )}
+        {periodChg != null && (
+          <div className="text-[10px] font-mono text-gray-500 ml-auto">
+            <span className="text-gray-600">{anchorLabel ?? '区间'} </span>
+            <span style={{ color: periodChg >= 0 ? '#34D399' : '#EF4444' }}>
+              {periodChg >= 0 ? '+' : ''}{periodChg.toFixed(2)}%
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

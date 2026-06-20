@@ -11,8 +11,8 @@ import {
 export const dynamic = 'force-dynamic'
 
 const KEYS = ['dxy', 'btc', 'brent', 'gold', 'sp500']
-const TTL = 5 * 60_000
-const YTD_BASELINE_TTL = 15 * 60_000
+const TTL = 15 * 60_000
+const YTD_BASELINE_TTL = 60 * 60_000 // 1h — daily closes don't change intraday
 
 interface HistoryPayload {
   series: Record<string, number>[]
@@ -45,7 +45,9 @@ async function getYtdBases(): Promise<(number | null)[]> {
   const year = new Date().getFullYear()
   const ytdStart = `${year}-01-01`
 
-  const results = await Promise.allSettled(KEYS.map((k) => fetchYahooHistory(k, '1y')))
+  // Force daily interval so we pick the exact first trading day of the year,
+  // not the (less precise) first weekly bar which can be several days off.
+  const results = await Promise.allSettled(KEYS.map((k) => fetchYahooHistory(k, '1y', '1d')))
   const bases = buildMaps(results).map((m) => {
     if (!m) return null
     for (const d of [...m.keys()].sort()) {

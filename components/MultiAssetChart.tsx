@@ -58,7 +58,11 @@ function CustomTooltip({ active, payload, label }: any) {
       }
     })
     .filter((it: any) => it.pct != null)
-    .sort((a: any, b: any) => b.pct - a.pct)
+    .sort((a: any, b: any) => {
+      const ai = ASSETS.findIndex((x) => x.key === a.baseKey)
+      const bi = ASSETS.findIndex((x) => x.key === b.baseKey)
+      return ai - bi
+    })
 
   return (
     <div className="bg-gray-900/95 border border-gray-600/60 rounded-xl p-3.5 shadow-2xl text-xs backdrop-blur-sm">

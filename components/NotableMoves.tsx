@@ -27,14 +27,16 @@ function fmtEventDate(s: string) {
 }
 
 function nearestEvent(ts: number, events: MacroEvent[]): MacroEvent | null {
-  const moveDate = new Date(ts).toISOString().slice(0, 10)
   let best: MacroEvent | null = null
   let bestDiff = Infinity
   for (const e of events) {
-    if (e.date > moveDate) continue // only look backward
-    const diff = (ts - new Date(e.date).getTime()) / 86400000
-    if (diff <= 45 && diff < bestDiff) {
-      bestDiff = diff
+    const diffDays = (ts - new Date(e.date).getTime()) / 86400000
+    // Backward up to 30 days (post-event reaction), forward up to 3 days
+    // (pre-event positioning / anticipation trading)
+    if (diffDays > 30 || diffDays < -3) continue
+    const absDiff = Math.abs(diffDays)
+    if (absDiff < bestDiff) {
+      bestDiff = absDiff
       best = e
     }
   }

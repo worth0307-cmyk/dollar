@@ -142,10 +142,10 @@ export async function fetchYahooQuote(key: string) {
   return fetchQuote(sym)
 }
 
-export async function fetchYahooHistory(key: string, range: string) {
+export async function fetchYahooHistory(key: string, range: string, intervalOverride?: string) {
   const sym = KEY_TO_SYMBOL[key]
   if (!sym) throw new Error(`Unknown key: ${key}`)
-  return fetchHistory(sym, range)
+  return fetchHistory(sym, range, intervalOverride)
 }
 
 export async function fetchQuote(symbol: string) {
@@ -161,8 +161,8 @@ export async function fetchQuote(symbol: string) {
   }
 }
 
-export async function fetchHistory(symbol: string, range: string) {
-  const interval = INTERVAL[range] ?? '1d'
+export async function fetchHistory(symbol: string, range: string, intervalOverride?: string) {
+  const interval = intervalOverride ?? INTERVAL[range] ?? '1d'
   const result = await chart(symbol, { interval, range })
   return {
     timestamps: result.timestamp as number[],
