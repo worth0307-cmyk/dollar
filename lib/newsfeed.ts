@@ -139,13 +139,47 @@ const TRANSLATE_TIMEOUT = 5_000
 
 const FEED_URL = 'https://oilprice.com/rss/main'
 
-// MyMemory free translation — no API key. Anonymous quota is 1000 words/day
-// PER IP; setting MYMEMORY_EMAIL raises it to ~50000/day keyed to the email,
-// which avoids exhausting the shared Cloudflare egress IP's quota.
-// Falls back to the original English title on any error.
+// ── Translation ────────────────────────────────────────────────────────────
+// Primary: Cloudflare Workers AI (m2m100). The model runs INSIDE Cloudflare's
+// network, so it is never blocked or rate-limited by the shared egress IP the
+// way third-party services (MyMemory / Google) are. Needs two env vars set in
+// the Cloudflare deployment:
+//   CF_ACCOUNT_ID  — your Cloudflare account id
+//   CF_AI_TOKEN    — an API token with the "Workers AI" permission
+// Fallback: MyMemory (best-effort, free, no key) → original English title.
+const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID
+const CF_AI_TOKEN = process.env.CF_AI_TOKEN
+const CF_AI_MODEL = '@cf/meta/m2m100-1.2b'
+
+// MyMemory raises its anonymous per-IP quota when a contact email is supplied.
 const TRANSLATE_EMAIL = process.env.MYMEMORY_EMAIL ?? 'worth0307@gmail.com'
 
-async function translateOne(text: string): Promise<string> {
+async function translateViaWorkersAI(text: string): Promise<string> {
+  if (!CF_ACCOUNT_ID || !CF_AI_TOKEN) return text
+  try {
+    const res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/${CF_AI_MODEL}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${CF_AI_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text, source_lang: 'english', target_lang: 'chinese' }),
+        signal: AbortSignal.timeout(TRANSLATE_TIMEOUT),
+      }
+    )
+    if (!res.ok) return text
+    const json: any = await res.json()
+    const translated: string = json?.result?.translated_text ?? ''
+    if (!translated || translated.trim() === text.trim()) return text
+    return translated
+  } catch {
+    return text
+  }
+}
+
+async function translateViaMyMemory(text: string): Promise<string> {
   try {
     const qs = new URLSearchParams({ q: text, langpair: 'en|zh-CN' })
     if (TRANSLATE_EMAIL) qs.set('de', TRANSLATE_EMAIL)
@@ -159,7 +193,6 @@ async function translateOne(text: string): Promise<string> {
     if (json?.responseStatus && Number(json.responseStatus) !== 200) return text
     const translated: string = json?.responseData?.translatedText ?? ''
     if (!translated || translated.trim() === text.trim()) return text
-    // Guard against warning strings leaking through as if they were translations.
     if (/MYMEMORY WARNING|INVALID|USED ALL|NEXT AVAILABLE/i.test(translated)) return text
     return translated
   } catch {
@@ -167,28 +200,27 @@ async function translateOne(text: string): Promise<string> {
   }
 }
 
+async function translateOne(text: string): Promise<string> {
+  const viaCf = await translateViaWorkersAI(text)
+  if (viaCf !== text) return viaCf
+  // Workers AI unconfigured or failed → best-effort free fallback.
+  return translateViaMyMemory(text)
+}
+
 // Exposed for the ?debug=1 endpoint so translation can be verified live,
-// bypassing the news cache. Returns the raw MyMemory response fields.
+// bypassing the news cache. Shows which provider produced the result.
 export async function translateProbe(sample: string): Promise<Record<string, unknown>> {
-  const emailSent = !!TRANSLATE_EMAIL
-  const qs = new URLSearchParams({ q: sample, langpair: 'en|zh-CN' })
-  if (TRANSLATE_EMAIL) qs.set('de', TRANSLATE_EMAIL)
-  try {
-    const res = await fetch(`https://api.mymemory.translated.net/get?${qs}`, {
-      signal: AbortSignal.timeout(TRANSLATE_TIMEOUT),
-    })
-    const json: any = await res.json().catch(() => null)
-    return {
-      emailSent,
-      httpStatus: res.status,
-      responseStatus: json?.responseStatus,
-      quotaFinished: json?.quotaFinished,
-      rawTranslatedText: json?.responseData?.translatedText,
-      sample,
-      result: await translateOne(sample),
-    }
-  } catch (e) {
-    return { emailSent, sample, error: String(e) }
+  const cfConfigured = !!(CF_ACCOUNT_ID && CF_AI_TOKEN)
+  const viaCf = await translateViaWorkersAI(sample)
+  const viaMyMemory = viaCf !== sample ? '(skipped — Workers AI succeeded)' : await translateViaMyMemory(sample)
+  const result = viaCf !== sample ? viaCf : viaMyMemory
+  return {
+    cfConfigured,
+    sample,
+    workersAI: viaCf !== sample ? viaCf : '(no result / not configured)',
+    myMemory: viaMyMemory,
+    provider: viaCf !== sample ? 'workers-ai' : result !== sample ? 'mymemory' : 'none (english fallback)',
+    result,
   }
 }
 
