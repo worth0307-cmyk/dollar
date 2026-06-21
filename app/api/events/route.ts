@@ -24,7 +24,6 @@ function staticUpcoming() {
   const today = new Date().toISOString().slice(0, 10)
   return UPCOMING_EVENTS.filter((e) => e.date > today)
     .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 10)
 }
 
 export async function GET(req: Request) {
@@ -45,8 +44,14 @@ export async function GET(req: Request) {
   try {
     const ffUpcoming = await fetchUpcomingFromFF(diagInfo)
     if (ffUpcoming.length > 0) {
-      upcoming = ffUpcoming
-      upcomingSource = 'forexfactory'
+      // Merge: FF provides near-term events (this + next week) with live forecasts;
+      // static covers the rest of the 6-month horizon.
+      const ffKeys = new Set(ffUpcoming.map((e) => `${e.date}::${e.title}`))
+      const staticFuture = staticUpcoming().filter((e) => !ffKeys.has(`${e.date}::${e.title}`))
+      upcoming = [...ffUpcoming, ...staticFuture]
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .slice(0, 15)
+      upcomingSource = 'forexfactory+static'
     }
   } catch (err) {
     if (debug) {

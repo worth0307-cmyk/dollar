@@ -162,8 +162,8 @@ function buildDescription(base: string, forecastRaw: string | undefined, prevRaw
   return desc
 }
 
-async function fetchWeek(): Promise<FFEvent[]> {
-  const res = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
+async function fetchWeek(which: 'thisweek' | 'nextweek'): Promise<FFEvent[]> {
+  const res = await fetch(`https://nfs.faireconomy.media/ff_calendar_${which}.json`, {
     headers: {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -182,16 +182,30 @@ export interface CalendarDebug {
   matched: Array<Record<string, unknown>>
 }
 
-// Fetches upcoming (future) USD High/Medium events from ForexFactory this week.
+// Fetches upcoming (future) USD High/Medium events from ForexFactory this week + next.
 // Past events are handled by static data in lib/events.ts.
 export async function fetchUpcomingFromFF(debug?: CalendarDebug): Promise<MacroEvent[]> {
-  let raw: FFEvent[]
-  try {
-    raw = await fetchWeek()
-    if (debug) debug.feeds['thisweek'] = raw.length
-  } catch (err) {
-    if (debug) debug.feeds['thisweek'] = String(err)
-    throw new Error(`ForexFactory unavailable — ${String(err)}`)
+  const [thisResult, nextResult] = await Promise.allSettled([
+    fetchWeek('thisweek'),
+    fetchWeek('nextweek'),
+  ])
+
+  const raw: FFEvent[] = []
+  if (thisResult.status === 'fulfilled') {
+    raw.push(...thisResult.value)
+    if (debug) debug.feeds['thisweek'] = thisResult.value.length
+  } else {
+    if (debug) debug.feeds['thisweek'] = String(thisResult.reason)
+  }
+  if (nextResult.status === 'fulfilled') {
+    raw.push(...nextResult.value)
+    if (debug) debug.feeds['nextweek'] = nextResult.value.length
+  } else {
+    if (debug) debug.feeds['nextweek'] = String(nextResult.reason)
+  }
+
+  if (raw.length === 0) {
+    throw new Error(`ForexFactory unavailable`)
   }
 
   const now = Date.now()

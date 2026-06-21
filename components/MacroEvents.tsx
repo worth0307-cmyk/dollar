@@ -250,7 +250,7 @@ export default function MacroEvents({ past, upcoming }: Props) {
       </div>
 
       <p className="text-[10px] text-gray-600 mt-2">
-        历史事件：经济数据超预期/不及预期按 <code className="text-gray-500">lib/releases.ts</code> 中的实际值与预期值自动判定；地缘/政策事件人工标注；<span className="text-sky-600">新闻</span> 标签来自 GDELT 实时地缘能源新闻（每4h更新）。即将发生事件使用 ForexFactory 经济日历。
+        历史事件：经济数据超预期/不及预期按 <code className="text-gray-500">lib/releases.ts</code> 中的实际值与预期值自动判定；地缘/政策事件人工标注；<span className="text-sky-600">新闻</span> 标签来自 OilPrice.com 实时地缘能源新闻（每4h更新）。即将发生事件使用 ForexFactory 经济日历 + 静态日程（未来6个月）。
       </p>
     </div>
   )

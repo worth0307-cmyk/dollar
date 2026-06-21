@@ -1,7 +1,6 @@
-// Google News RSS — free, stable, keyword-searchable, and (unlike GDELT) not
-// rate-limited per-IP, so it works reliably from Cloudflare's shared egress.
-// We search energy/geopolitical keywords, infer affected assets from the
-// headline, and classify impact level.
+// OilPrice.com RSS — free, energy/geopolitics focused, no per-IP rate limit.
+// Covers crude oil, OPEC, sanctions, and supply-disruption headlines.
+// We infer affected assets from the headline and classify impact level.
 
 import type { MacroEvent } from './events'
 
@@ -72,19 +71,13 @@ function toIsoDate(pubDate: string): string {
 function parseRss(xml: string): NewsItem[] {
   const items = xml.match(/<item[\s\S]*?<\/item>/gi) ?? []
   return items.map((block) => {
-    const source = pick(block, 'source')
-    let title = pick(block, 'title')
-    // Google News appends " - Source Name" to titles — strip it.
-    if (source && title.endsWith(` - ${source}`)) {
-      title = title.slice(0, -(source.length + 3))
-    } else {
-      title = title.replace(/\s+-\s+[^-]+$/, '')
-    }
+    const title = pick(block, 'title').trim()
+    const url = pick(block, 'link') || pick(block, 'guid')
     return {
-      title: title.trim(),
-      url: pick(block, 'link'),
+      title,
+      url,
       date: toIsoDate(pick(block, 'pubDate')),
-      source: source || 'news',
+      source: 'OilPrice.com',
     }
   })
 }
@@ -110,16 +103,10 @@ function dedup(items: NewsItem[]): NewsItem[] {
 
 const NEWS_TIMEOUT = 10_000
 
-// Energy + geopolitics search. `when:3d` restricts to the last 3 days.
-const QUERY = '("crude oil" OR OPEC OR "Strait of Hormuz" OR "oil price" OR "oil supply" OR sanctions) when:3d'
-
-function buildUrl(): string {
-  const qs = new URLSearchParams({ q: QUERY, hl: 'en-US', gl: 'US', ceid: 'US:en' })
-  return `https://news.google.com/rss/search?${qs}`
-}
+const FEED_URL = 'https://oilprice.com/rss/main'
 
 async function rawFetch(): Promise<{ status: number; body: string }> {
-  const res = await fetch(buildUrl(), {
+  const res = await fetch(FEED_URL, {
     headers: {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -154,7 +141,7 @@ function toEvents(items: NewsItem[]): MacroEvent[] {
 
 export async function fetchGeopoliticalEvents(): Promise<MacroEvent[]> {
   const { status, body } = await rawFetch()
-  if (status !== 200) throw new Error(`News RSS HTTP ${status}: ${body.slice(0, 120)}`)
+  if (status !== 200) throw new Error(`OilPrice RSS HTTP ${status}: ${body.slice(0, 120)}`)
   return toEvents(parseRss(body))
 }
 
@@ -165,7 +152,7 @@ export async function newsProbe(): Promise<Record<string, unknown>> {
     const items = parseRss(body)
     const events = toEvents(items)
     return {
-      url: buildUrl(),
+      url: FEED_URL,
       httpStatus: status,
       bodyStart: body.slice(0, 160),
       itemCount: items.length,
@@ -173,6 +160,6 @@ export async function newsProbe(): Promise<Record<string, unknown>> {
       sample: events.slice(0, 3).map((e) => ({ date: e.date, title: e.title, assets: e.assets })),
     }
   } catch (e) {
-    return { url: buildUrl(), fetchError: String(e) }
+    return { url: FEED_URL, fetchError: String(e) }
   }
 }
