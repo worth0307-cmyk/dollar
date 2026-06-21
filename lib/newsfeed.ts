@@ -3,6 +3,7 @@
 // We infer affected assets from the headline and classify impact level.
 
 import type { MacroEvent } from './events'
+import { canSpend, recordSpend, recordBlocked, budgetSnapshot } from './aibudget'
 
 interface NewsItem {
   title: string
@@ -156,7 +157,14 @@ const TRANSLATE_EMAIL = process.env.MYMEMORY_EMAIL ?? 'worth0307@gmail.com'
 
 async function translateViaWorkersAI(text: string): Promise<string> {
   if (!CF_ACCOUNT_ID || !CF_AI_TOKEN) return text
+  // Daily budget guard: once 70% of the free neuron allowance is reached, stop
+  // calling Workers AI and fall back to English — never spill into paid usage.
+  if (!canSpend()) {
+    recordBlocked()
+    return text
+  }
   try {
+    recordSpend() // count the attempt up-front (conservative)
     const res = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/${CF_AI_MODEL}`,
       {
@@ -200,11 +208,25 @@ async function translateViaMyMemory(text: string): Promise<string> {
   }
 }
 
+// Per-isolate memo so the same headline is never translated (or budget-spent)
+// twice across the 4h news-cache cycles. Only successful translations memoed.
+const translationMemo = new Map<string, { zh: string; exp: number }>()
+const MEMO_TTL = 24 * 60 * 60_000
+
 async function translateOne(text: string): Promise<string> {
-  const viaCf = await translateViaWorkersAI(text)
-  if (viaCf !== text) return viaCf
-  // Workers AI unconfigured or failed → best-effort free fallback.
-  return translateViaMyMemory(text)
+  const memo = translationMemo.get(text)
+  if (memo && Date.now() < memo.exp) return memo.zh
+
+  let zh = await translateViaWorkersAI(text)
+  if (zh === text) {
+    // Workers AI unconfigured, failed, or budget-capped → best-effort free fallback.
+    zh = await translateViaMyMemory(text)
+  }
+  if (zh !== text) {
+    if (translationMemo.size > 500) translationMemo.clear()
+    translationMemo.set(text, { zh, exp: Date.now() + MEMO_TTL })
+  }
+  return zh
 }
 
 // Exposed for the ?debug=1 endpoint so translation can be verified live,
@@ -221,8 +243,12 @@ export async function translateProbe(sample: string): Promise<Record<string, unk
     myMemory: viaMyMemory,
     provider: viaCf !== sample ? 'workers-ai' : result !== sample ? 'mymemory' : 'none (english fallback)',
     result,
+    budget: budgetSnapshot(),
   }
 }
+
+// Fresh budget snapshot for the /api/news response (drives the on-screen badge).
+export { budgetSnapshot }
 
 async function translateAll(titles: string[]): Promise<string[]> {
   const results = await Promise.allSettled(titles.map(translateOne))

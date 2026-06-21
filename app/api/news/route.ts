@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { fetchGeopoliticalEvents, newsProbe } from '@/lib/newsfeed'
+import { fetchGeopoliticalEvents, newsProbe, budgetSnapshot } from '@/lib/newsfeed'
 import { cacheGet, cacheSet } from '@/lib/cache'
 import type { MacroEvent } from '@/lib/events'
 
@@ -17,16 +17,19 @@ export async function GET(req: Request) {
     return NextResponse.json(await newsProbe())
   }
 
+  // Fresh each request (not cached) so the on-screen badge tracks live usage.
+  const aiUsage = budgetSnapshot()
+
   const cached = cacheGet<MacroEvent[]>(CACHE_KEY)
-  if (cached) return NextResponse.json({ news: cached, cached: true })
+  if (cached) return NextResponse.json({ news: cached, cached: true, aiUsage })
 
   try {
     const news = await fetchGeopoliticalEvents()
     cacheSet(CACHE_KEY, news, news.length ? TTL : RETRY_TTL)
-    return NextResponse.json({ news })
+    return NextResponse.json({ news, aiUsage: budgetSnapshot() })
   } catch (err) {
-    // Cache an empty result briefly to avoid hammering GDELT on every request.
+    // Cache an empty result briefly to avoid hammering the feed on every request.
     cacheSet(CACHE_KEY, [], RETRY_TTL)
-    return NextResponse.json({ news: [], error: String(err) })
+    return NextResponse.json({ news: [], error: String(err), aiUsage })
   }
 }
