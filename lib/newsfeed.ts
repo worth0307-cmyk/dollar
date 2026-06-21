@@ -77,41 +77,51 @@ function dedup(articles: GdeltArticle[]): GdeltArticle[] {
   })
 }
 
-// Broad energy + geopolitical keyword set. We cast a wide net and filter
-// by asset relevance after parsing, rather than trying to pre-narrow the query.
-const GDELT_QUERY = [
-  'Hormuz OR OPEC OR "oil sanctions" OR "oil attack" OR "oil tanker"',
-  'OR "pipeline attack" OR "energy crisis" OR "gas pipeline" OR "crude oil"',
-  'OR "trade war" OR "military strike" OR "economic sanctions" OR blockade',
-  'OR "Strait of Malacca" OR "oil supply" OR "oil price"',
-].join(' ')
+// Broad energy + geopolitical keyword set. GDELT's boolean parser is finicky
+// with very long OR chains, so we keep this to a tight, reliable set.
+const GDELT_QUERY =
+  '"crude oil" OR OPEC OR "Strait of Hormuz" OR "oil sanctions" OR "oil supply" OR "energy crisis" OR "oil tanker"'
 
-export async function fetchGeopoliticalEvents(): Promise<MacroEvent[]> {
+function buildUrl(): string {
   const qs = new URLSearchParams({
     query: GDELT_QUERY,
     mode: 'artlist',
     maxrecords: '60',
     timespan: '30d',
     sort: 'datedesc',
-    sourcelang: 'english',
     format: 'json',
   })
+  return `https://api.gdeltproject.org/api/v2/doc/doc?${qs}`
+}
 
-  const res = await fetch(`https://api.gdeltproject.org/api/v2/doc/doc?${qs}`, {
+// GDELT sometimes returns HTTP 200 with a plain-text/HTML error instead of JSON
+// (e.g. "Your query was too short or too long"). Read as text and parse
+// defensively so those cases surface as a clear error rather than a JSON crash.
+async function rawFetch(): Promise<{ status: number; body: string }> {
+  const res = await fetch(buildUrl(), {
     headers: {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     },
     signal: AbortSignal.timeout(8_000),
   })
-  if (!res.ok) throw new Error(`GDELT ${res.status}`)
+  const body = await res.text()
+  return { status: res.status, body }
+}
 
-  const data: GdeltResponse = await res.json()
-  if (!data.articles?.length) return []
+function parseArticles(body: string): GdeltArticle[] {
+  const trimmed = body.trim()
+  if (!trimmed.startsWith('{')) {
+    // Not JSON — GDELT returned an error message or empty response
+    throw new Error(`non-JSON response: ${trimmed.slice(0, 120)}`)
+  }
+  const data: GdeltResponse = JSON.parse(trimmed)
+  return data.articles ?? []
+}
 
+function toEvents(articles: GdeltArticle[]): MacroEvent[] {
   const today = new Date().toISOString().slice(0, 10)
-
-  return dedup(data.articles)
+  return dedup(articles)
     .filter((a) => a.language == null || a.language === 'English')
     .slice(0, 12)
     .map((a): MacroEvent => {
@@ -128,4 +138,37 @@ export async function fetchGeopoliticalEvents(): Promise<MacroEvent[]> {
       }
     })
     .filter((e) => e.date <= today)
+}
+
+export async function fetchGeopoliticalEvents(): Promise<MacroEvent[]> {
+  const { status, body } = await rawFetch()
+  if (status !== 200) throw new Error(`GDELT HTTP ${status}: ${body.slice(0, 120)}`)
+  return toEvents(parseArticles(body))
+}
+
+// Diagnostics for the ?debug=1 endpoint — never throws.
+export async function gdeltProbe(): Promise<Record<string, unknown>> {
+  try {
+    const { status, body } = await rawFetch()
+    let articleCount = -1
+    let eventCount = -1
+    let parseError: string | null = null
+    try {
+      const articles = parseArticles(body)
+      articleCount = articles.length
+      eventCount = toEvents(articles).length
+    } catch (e) {
+      parseError = String(e)
+    }
+    return {
+      url: buildUrl(),
+      httpStatus: status,
+      bodyStart: body.slice(0, 200),
+      articleCount,
+      eventCount,
+      parseError,
+    }
+  } catch (e) {
+    return { url: buildUrl(), fetchError: String(e) }
+  }
 }

@@ -159,15 +159,41 @@ interface Props {
   upcoming: MacroEvent[]
 }
 
+type FilterKey = 'beat' | 'miss' | 'news'
+
+const FILTERS: Array<{ key: FilterKey; label: string; active: string; dot: string }> = [
+  { key: 'beat', label: '超预期', active: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40', dot: 'bg-emerald-400' },
+  { key: 'miss', label: '不及预期', active: 'bg-red-500/15 text-red-400 border-red-500/40', dot: 'bg-red-400' },
+  { key: 'news', label: '新闻', active: 'bg-sky-500/15 text-sky-400 border-sky-500/40', dot: 'bg-sky-400' },
+]
+
+function matchesFilter(e: MacroEvent, f: FilterKey): boolean {
+  if (f === 'news') return e.source === 'news'
+  return e.outcome === f
+}
+
 export default function MacroEvents({ past, upcoming }: Props) {
   const [tab, setTab] = useState<'past' | 'upcoming'>('upcoming')
+  const [filters, setFilters] = useState<Set<FilterKey>>(new Set())
 
-  const events = tab === 'past' ? past : upcoming
+  const toggleFilter = (k: FilterKey) =>
+    setFilters((prev) => {
+      const next = new Set(prev)
+      next.has(k) ? next.delete(k) : next.add(k)
+      return next
+    })
+
+  const base = tab === 'past' ? past : upcoming
+  // Filters only apply to the 历史事件 tab (upcoming has no outcome/news).
+  const events =
+    tab === 'past' && filters.size > 0
+      ? base.filter((e) => [...filters].some((f) => matchesFilter(e, f)))
+      : base
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Tab bar */}
-      <div className="flex gap-1 mb-3 border-b border-gray-800 pb-2.5">
+      <div className="flex items-center gap-1 mb-3 border-b border-gray-800 pb-2.5">
         {(['upcoming', 'past'] as const).map((t) => (
           <button
             key={t}
@@ -184,12 +210,38 @@ export default function MacroEvents({ past, upcoming }: Props) {
             </span>
           </button>
         ))}
+
+        {/* Filter chips — only meaningful on the 历史事件 tab */}
+        {tab === 'past' && (
+          <div className="flex items-center gap-1 ml-auto">
+            {FILTERS.map((f) => {
+              const on = filters.has(f.key)
+              const count = past.filter((e) => matchesFilter(e, f.key)).length
+              return (
+                <button
+                  key={f.key}
+                  onClick={() => toggleFilter(f.key)}
+                  title={`筛选${f.label}（${count}）`}
+                  className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors ${
+                    on ? f.active : 'border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-600'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${f.dot} ${on ? '' : 'opacity-40'}`} />
+                  {f.label}
+                  <span className="opacity-60">{count}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Scrollable list — pr-3 keeps badge clear of scrollbar */}
       <div className="flex-1 min-h-0 overflow-y-auto pr-3">
         {events.length === 0 ? (
-          <div className="text-sm text-gray-600 py-4 text-center">暂无数据</div>
+          <div className="text-sm text-gray-600 py-4 text-center">
+            {tab === 'past' && filters.size > 0 ? '无匹配的筛选结果' : '暂无数据'}
+          </div>
         ) : (
           events.map((e, i) => (
             <EventCard key={`${e.date}-${i}`} event={e} isUpcoming={tab === 'upcoming'} />

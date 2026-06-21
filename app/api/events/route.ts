@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { PAST_EVENTS, UPCOMING_EVENTS } from '@/lib/events'
 import { RELEASE_EVENTS } from '@/lib/releases'
 import { fetchUpcomingFromFF, type CalendarDebug } from '@/lib/calendar'
-import { fetchGeopoliticalEvents } from '@/lib/newsfeed'
+import { fetchGeopoliticalEvents, gdeltProbe } from '@/lib/newsfeed'
 import { cacheGet, cacheSet } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
@@ -28,9 +28,11 @@ async function buildPast() {
     }
   }
 
+  // Keep ALL curated events (fixed, small set) and append news (≤12) so a
+  // curated event is never pushed out by news. 40 > 24 curated + 12 news.
   return [...curated, ...newsEvents]
     .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 30)
+    .slice(0, 40)
 }
 
 function staticUpcoming() {
@@ -41,7 +43,13 @@ function staticUpcoming() {
 }
 
 export async function GET(req: Request) {
-  const debug = new URL(req.url).searchParams.get('debug') === '1'
+  const params = new URL(req.url).searchParams
+  const debug = params.get('debug') === '1'
+
+  // ?debug=news — probe GDELT directly, bypassing all caches.
+  if (params.get('debug') === 'news') {
+    return NextResponse.json(await gdeltProbe())
+  }
 
   const cached = cacheGet(CACHE_KEY)
   if (cached) {
@@ -77,13 +85,17 @@ export async function GET(req: Request) {
   }
 
   const merged = { past, upcoming }
-  cacheSet(CACHE_KEY, merged, TTL)
+  // If no news came through, cache for only 10 min so GDELT is retried sooner
+  // (instead of being stuck behind the 1h cache).
+  const hasNews = past.some((e) => e.source === 'news')
+  cacheSet(CACHE_KEY, merged, hasNews ? TTL : 10 * 60_000)
 
   if (debug) {
     return NextResponse.json({
       source: 'hybrid',
       pastSource: 'static',
       pastCount: past.length,
+      newsCount: past.filter((e) => e.source === 'news').length,
       upcomingSource,
       upcomingCount: upcoming.length,
       feeds: diagInfo?.feeds,
