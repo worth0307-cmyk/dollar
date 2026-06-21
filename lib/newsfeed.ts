@@ -3,6 +3,7 @@
 // We infer affected assets from the headline and classify impact level.
 
 import type { MacroEvent } from './events'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { canSpend, recordSpend, recordBlocked, budgetSnapshot } from './aibudget'
 
 interface NewsItem {
@@ -150,16 +151,32 @@ const FEED_URL = 'https://oilprice.com/rss/main'
 // Fallback: MyMemory (best-effort, free, no key) → original English title.
 const CF_AI_MODEL = '@cf/meta/m2m100-1.2b'
 
-// Read creds lazily and trimmed on every call. Lazy: under @opennextjs/cloudflare
-// env bindings are only reliably present in request scope, not at module-eval
-// time — reading at top level could capture `undefined` on a cold isolate.
-// Trimmed: a stray newline/space pasted into the dashboard would otherwise
-// corrupt the Authorization header and silently 400/401 the request.
-function cfCreds(): { id: string; token: string } {
-  return {
-    id: (process.env.CF_ACCOUNT_ID ?? '').trim(),
-    token: (process.env.CF_AI_TOKEN ?? '').trim(),
+// Read creds lazily, from the Cloudflare binding first, on every call.
+//
+// Why not `process.env` at module top level: dashboard-set vars/secrets are
+// Worker BINDINGS. Under @opennextjs/cloudflare they live on
+// getCloudflareContext().env and are only copied to process.env per-request —
+// reading them at module-eval time on a cold isolate yields `undefined`, which
+// is exactly the `cfConfigured:false` we saw. So we read the binding directly
+// (works in request scope on Workers) and fall back to process.env for local
+// dev (.env.local). Values are trimmed so a stray newline/space pasted into the
+// dashboard can't corrupt the Authorization header and silently 400/401.
+async function cfCreds(): Promise<{ id: string; token: string; source: string }> {
+  let id = (process.env.CF_ACCOUNT_ID ?? '').trim()
+  let token = (process.env.CF_AI_TOKEN ?? '').trim()
+  let source = id && token ? 'process.env' : ''
+  if (!id || !token) {
+    try {
+      const { env } = await getCloudflareContext({ async: true })
+      const e = env as Record<string, string | undefined>
+      id = id || (e.CF_ACCOUNT_ID ?? '').trim()
+      token = token || (e.CF_AI_TOKEN ?? '').trim()
+      if (id && token) source = source || 'cf-binding'
+    } catch {
+      // Not inside a Cloudflare request context (e.g. build/SSG) — process.env only.
+    }
   }
+  return { id, token, source }
 }
 
 // MyMemory raises its anonymous per-IP quota when a contact email is supplied.
@@ -177,7 +194,7 @@ interface WaiResult {
 }
 
 async function translateViaWorkersAIDetailed(text: string): Promise<WaiResult> {
-  const { id, token } = cfCreds()
+  const { id, token } = await cfCreds()
   if (!id || !token) return { zh: text, configured: false, error: 'CF_ACCOUNT_ID / CF_AI_TOKEN not set' }
   // Daily budget guard: once 70% of the free neuron allowance is reached, stop
   // calling Workers AI and fall back to English — never spill into paid usage.
@@ -264,13 +281,14 @@ async function translateOne(text: string): Promise<string> {
 // bypassing the news cache. Surfaces the Workers AI HTTP status / error so a
 // failing title can be diagnosed (bad token, wrong account id, model, quota…).
 export async function translateProbe(sample: string): Promise<Record<string, unknown>> {
-  const { id, token } = cfCreds()
+  const { id, token, source } = await cfCreds()
   const wai = await translateViaWorkersAIDetailed(sample)
   const viaCf = wai.zh
   const viaMyMemory = viaCf !== sample ? '(skipped — Workers AI succeeded)' : await translateViaMyMemory(sample)
   const result = viaCf !== sample ? viaCf : viaMyMemory
   return {
     cfConfigured: wai.configured,
+    cfCredSource: source || 'none', // process.env | cf-binding | none
     cfAccountIdLen: id.length, // length only — never expose the value
     cfTokenLen: token.length,
     sample,
