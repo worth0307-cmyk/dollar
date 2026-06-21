@@ -95,10 +95,14 @@ function buildUrl(): string {
   return `https://api.gdeltproject.org/api/v2/doc/doc?${qs}`
 }
 
-// GDELT sometimes returns HTTP 200 with a plain-text/HTML error instead of JSON
-// (e.g. "Your query was too short or too long"). Read as text and parse
-// defensively so those cases surface as a clear error rather than a JSON crash.
-async function rawFetch(): Promise<{ status: number; body: string }> {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// GDELT rate-limits to 1 request / 5s per IP (and Cloudflare's shared egress IP
+// makes 429s common). Since /api/news caches success for 4h, we can afford to
+// wait out the limit: retry on 429 a few times, spaced just over 5s apart.
+// Also reads the body as text and lets the caller parse defensively, because
+// GDELT returns HTTP 200 with plain-text errors for some queries.
+async function rawFetch(attempt = 0): Promise<{ status: number; body: string }> {
   const res = await fetch(buildUrl(), {
     headers: {
       'User-Agent':
@@ -107,6 +111,13 @@ async function rawFetch(): Promise<{ status: number; body: string }> {
     signal: AbortSignal.timeout(GDELT_TIMEOUT),
   })
   const body = await res.text()
+
+  // Retry on 429 (rate limit), up to 3 attempts total.
+  if (res.status === 429 && attempt < 2) {
+    await sleep(5_500)
+    return rawFetch(attempt + 1)
+  }
+
   return { status: res.status, body }
 }
 
