@@ -129,7 +129,7 @@ export async function GET(request: Request) {
   // Stable-σ moves from the 1Y baseline, sliced to the displayed window.
   // 1Y returns ALL qualifying moves in the window (the panel scrolls);
   // shorter ranges cap to keep the list digestible without scrolling.
-  const topN = ({ '5d': 10, '1mo': 20, '3mo': 30 } as Record<string, number>)[range]
+  const topN = ({ '5d': 10, '1mo': 20, '3mo': 30, '6mo': 40 } as Record<string, number>)[range]
   const yearMoves = await getYearMoves()
   const displayStart = dates.length ? new Date(dates[0]).getTime() : 0
   const filtered = yearMoves.filter((m) => m.time >= displayStart)

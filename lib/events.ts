@@ -9,6 +9,7 @@ export interface MacroEvent {
   beat?: string       // market impact if data beats expectations
   miss?: string       // market impact if data misses expectations
   outcome?: 'beat' | 'miss'  // auto-detected for past events with actual vs estimate data
+  source?: 'news'    // present only on auto-fetched GDELT news events
 }
 
 // ─── Past Events ──────────────────────────────────────────────────────────────

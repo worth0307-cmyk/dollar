@@ -77,6 +77,7 @@ const INTERVAL: Record<string, string> = {
   '5d': '1d',
   '1mo': '1d',
   '3mo': '1d',
+  '6mo': '1d',
   '1y': '1wk',
 }
 

@@ -52,18 +52,26 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
           <div className="w-44 shrink-0">
             <span className="text-[11px] font-mono text-slate-300 block">{fmtDate(event.date)}</span>
             <span className="text-sm font-medium text-gray-100">{event.title}</span>
-            {/* Auto-detected outcome badge for past events */}
-            {autoOutcome && (
-              <span
-                className={`mt-0.5 inline-block text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                  autoOutcome === 'beat'
-                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
-                    : 'bg-red-500/15 text-red-400 border border-red-500/25'
-                }`}
-              >
-                {autoOutcome === 'beat' ? '↑ 超预期' : '↓ 不及预期'}
-              </span>
-            )}
+            <div className="mt-0.5 flex flex-wrap gap-1">
+              {/* News source badge */}
+              {event.source === 'news' && (
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/25">
+                  新闻
+                </span>
+              )}
+              {/* Auto-detected outcome badge for past events */}
+              {autoOutcome && (
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                    autoOutcome === 'beat'
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
+                      : 'bg-red-500/15 text-red-400 border border-red-500/25'
+                  }`}
+                >
+                  {autoOutcome === 'beat' ? '↑ 超预期' : '↓ 不及预期'}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Detail — always visible, fills available width */}
@@ -190,7 +198,7 @@ export default function MacroEvents({ past, upcoming }: Props) {
       </div>
 
       <p className="text-[10px] text-gray-600 mt-2">
-        历史事件：经济数据（CPI/非农等）在 <code className="text-gray-500">lib/releases.ts</code> 录入实际值与预期值，超预期(利好)/不及预期(利空)按指标方向自动判定；地缘/政策类事件在 <code className="text-gray-500">lib/events.ts</code> 人工标注。即将发生事件优先使用 ForexFactory 经济日历实时预期。
+        历史事件：经济数据超预期/不及预期按 <code className="text-gray-500">lib/releases.ts</code> 中的实际值与预期值自动判定；地缘/政策事件人工标注；<span className="text-sky-600">新闻</span> 标签来自 GDELT 实时地缘能源新闻（每4h更新）。即将发生事件使用 ForexFactory 经济日历。
       </p>
     </div>
   )
