@@ -230,6 +230,7 @@ export default function Dashboard() {
               stats={stats}
               moves={moves}
               market={market}
+              events={pastEvents}
               anchor={anchor}
               onAnchorChange={setAnchor}
               selectedKey={selectedAsset}

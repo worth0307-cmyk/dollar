@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   LineChart,
   Line,
@@ -9,9 +9,11 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  ReferenceLine,
 } from 'recharts'
 import { ASSETS, ASSET_BY_KEY } from '@/lib/assets'
 import type { AssetStat } from '@/lib/analytics'
+import type { MacroEvent } from '@/lib/events'
 
 interface MarketAsset {
   key: string
@@ -47,7 +49,12 @@ function fmtPrice(price: number | null | undefined, key: string) {
   }).format(price)}${meta?.suffix ?? ''}`
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+const EVENT_LINE_COLOR: Record<string, string> = {
+  high: '#EF4444',
+  medium: '#F59E0B',
+}
+
+function CustomTooltip({ active, payload, label, nearEvent }: any) {
   if (!active || !payload?.length) return null
   const rowData: Record<string, number> = payload[0]?.payload ?? {}
 
@@ -92,6 +99,15 @@ function CustomTooltip({ active, payload, label }: any) {
           </div>
         )
       })}
+      {nearEvent && (
+        <div
+          className="mt-2 pt-2 border-t border-gray-700/60 flex items-start gap-1.5"
+          style={{ color: EVENT_LINE_COLOR[nearEvent.impact] ?? '#94A3B8' }}
+        >
+          <span className="shrink-0 mt-px">◈</span>
+          <span className="leading-snug">{nearEvent.title}</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -103,6 +119,7 @@ interface Props {
   stats?: Record<string, AssetStat>
   moves?: Move[]
   market?: MarketAsset[]
+  events?: MacroEvent[]
   anchor: 'period' | 'ytd'
   onAnchorChange: (a: 'period' | 'ytd') => void
   selectedKey?: string | null
@@ -117,6 +134,7 @@ export default function MultiAssetChart({
   stats,
   moves,
   market,
+  events,
   anchor,
   onAnchorChange,
   selectedKey,
@@ -124,6 +142,7 @@ export default function MultiAssetChart({
   selectedMove,
 }: Props) {
   const [hidden, setHidden] = useState<Set<string>>(new Set())
+  const [showEvents, setShowEvents] = useState(false)
 
   const toggle = (key: string) =>
     setHidden((prev) => {
@@ -169,6 +188,29 @@ export default function MultiAssetChart({
     movesByKey.get(m.key)!.set(m.time, m)
   })
 
+  // Non-news, high/medium impact past events within the chart's time range.
+  const chartMin = data[0]?.time as number | undefined
+  const chartMax = data[data.length - 1]?.time as number | undefined
+  const eventLines = useMemo(() => {
+    if (!events || !chartMin || !chartMax) return []
+    return events
+      .filter((e) => e.source !== 'news' && (e.impact === 'high' || e.impact === 'medium'))
+      .map((e) => ({ ...e, ts: new Date(e.date + 'T12:00:00').getTime() }))
+      .filter((e) => e.ts >= chartMin && e.ts <= chartMax)
+  }, [events, chartMin, chartMax])
+
+  // Nearest event to a given timestamp (for tooltip), within ±1.5 days.
+  function nearestEventLine(ts: number): MacroEvent | null {
+    if (!showEvents || !eventLines.length) return null
+    let best: (typeof eventLines)[0] | null = null
+    let bestDiff = Infinity
+    for (const e of eventLines) {
+      const d = Math.abs(e.ts - ts)
+      if (d < 86400000 * 1.5 && d < bestDiff) { bestDiff = d; best = e }
+    }
+    return best
+  }
+
   if (loading) {
     return (
       <div className="w-full h-[340px] flex items-center justify-center text-gray-500 text-sm">
@@ -187,7 +229,7 @@ export default function MultiAssetChart({
 
   return (
     <div className="chart-glow flex flex-col h-full">
-      {/* Anchor toggle */}
+      {/* Anchor toggle + event lines toggle */}
       <div className="flex items-center gap-2 mb-3">
         <span className="text-[10px] text-gray-500">基准：</span>
         {(['period', 'ytd'] as const).map((a) => (
@@ -208,6 +250,19 @@ export default function MultiAssetChart({
             {a === 'period' ? '区间起点 = 0%' : 'YTD 年初 = 0%'}
           </button>
         ))}
+        {eventLines.length > 0 && (
+          <button
+            onClick={() => setShowEvents((v) => !v)}
+            title={showEvents ? '隐藏宏观事件参考线' : '显示宏观事件参考线（红=重大，橙=中等）'}
+            className={`ml-auto text-[10px] px-2 py-0.5 rounded font-mono border transition-colors ${
+              showEvents
+                ? 'bg-amber-500/15 text-amber-400 border-amber-500/40'
+                : 'text-gray-500 hover:text-gray-300 border-gray-700'
+            }`}
+          >
+            ◈ 事件线 {eventLines.length}
+          </button>
+        )}
       </div>
 
       {/* Chart */}
@@ -235,10 +290,23 @@ export default function MultiAssetChart({
                 width={8}
               />
               <Tooltip
-                content={<CustomTooltip />}
+                content={(props: any) => (
+                  <CustomTooltip {...props} nearEvent={nearestEventLine(props.label)} />
+                )}
                 cursor={{ stroke: '#4B5563', strokeWidth: 1, fill: 'none' }}
                 wrapperStyle={{ outline: 'none', border: 'none' }}
               />
+
+              {showEvents && eventLines.map((e, i) => (
+                <ReferenceLine
+                  key={`evline-${i}`}
+                  x={e.ts}
+                  stroke={EVENT_LINE_COLOR[e.impact] ?? '#94A3B8'}
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                  strokeOpacity={0.55}
+                />
+              ))}
 
               {ASSETS.map((a) => {
                 const isAssetSelected = selectedKey === a.key
