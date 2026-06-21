@@ -139,17 +139,24 @@ const TRANSLATE_TIMEOUT = 5_000
 
 const FEED_URL = 'https://oilprice.com/rss/main'
 
-// MyMemory free translation — no API key, 1000 req/day limit.
+// MyMemory free translation — no API key. Anonymous quota is 1000 words/day
+// PER IP; setting MYMEMORY_EMAIL raises it to ~50000/day keyed to the email,
+// which avoids exhausting the shared Cloudflare egress IP's quota.
 // Falls back to the original English title on any error.
+const TRANSLATE_EMAIL = process.env.MYMEMORY_EMAIL
+
 async function translateOne(text: string): Promise<string> {
   try {
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|zh-CN`
-    const res = await fetch(url, { signal: AbortSignal.timeout(TRANSLATE_TIMEOUT) })
+    const qs = new URLSearchParams({ q: text, langpair: 'en|zh-CN' })
+    if (TRANSLATE_EMAIL) qs.set('de', TRANSLATE_EMAIL)
+    const res = await fetch(`https://api.mymemory.translated.net/get?${qs}`, {
+      signal: AbortSignal.timeout(TRANSLATE_TIMEOUT),
+    })
     if (!res.ok) return text
     const json = await res.json()
     const translated: string = json?.responseData?.translatedText ?? ''
     // MyMemory returns the original text (or error strings) when translation fails
-    if (!translated || translated === text || /MYMEMORY|QUERY|ERROR/i.test(translated)) return text
+    if (!translated || translated === text || /MYMEMORY|QUERY|ERROR|LIMIT/i.test(translated)) return text
     return translated
   } catch {
     return text

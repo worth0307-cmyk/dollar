@@ -53,7 +53,7 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
         >
           {/* Title block — for news only shows date + badge; title moves to detail */}
           <div className="w-44 shrink-0">
-            <span className="text-[11px] font-mono text-slate-300 block">{fmtDate(event.date)}</span>
+            <span className="text-[11px] font-mono text-gray-100 block">{fmtDate(event.date)}</span>
             {!isNews && <span className="text-sm font-medium text-gray-100">{event.title}</span>}
             <div className="mt-0.5 flex flex-wrap gap-1">
               {isNews && (
@@ -77,11 +77,11 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
 
           {/* Detail — always visible, fills available width */}
           <div className="flex-1 min-w-0">
-            {/* News: English headline sits at the top of the detail area */}
+            {/* News: translated Chinese headline sits at the top of the detail area */}
             {isNews && (
               <p className="text-sm font-medium text-gray-100 leading-snug mb-1">{event.title}</p>
             )}
-            <p className="text-xs text-gray-400 leading-relaxed">{event.description}</p>
+            <p className="text-xs text-gray-100 leading-relaxed">{event.description}</p>
             <div className="mt-1.5 flex gap-1 flex-wrap">
               {event.assets.map((k) => (
                 <span
@@ -244,7 +244,7 @@ export default function MacroEvents({ past, upcoming }: Props) {
       {/* Scrollable list — pr-3 keeps badge clear of scrollbar */}
       <div className="flex-1 min-h-0 overflow-y-auto pr-3">
         {events.length === 0 ? (
-          <div className="text-sm text-gray-600 py-4 text-center">
+          <div className="text-sm text-gray-100 py-4 text-center">
             {tab === 'past' && filters.size > 0 ? '无匹配的筛选结果' : '暂无数据'}
           </div>
         ) : (
@@ -254,8 +254,8 @@ export default function MacroEvents({ past, upcoming }: Props) {
         )}
       </div>
 
-      <p className="text-[10px] text-gray-600 mt-2">
-        历史事件：经济数据超预期/不及预期按 <code className="text-gray-500">lib/releases.ts</code> 中的实际值与预期值自动判定；地缘/政策事件人工标注；<span className="text-sky-600">新闻</span> 标签来自 OilPrice.com 实时地缘能源新闻（每4h更新）。即将发生事件使用 ForexFactory 经济日历 + 静态日程（未来6个月）。
+      <p className="text-[10px] text-gray-100 mt-2">
+        历史事件：经济数据超预期/不及预期按 <code className="text-gray-200">lib/releases.ts</code> 中的实际值与预期值自动判定；地缘/政策事件人工标注；<span className="text-sky-400">新闻</span> 标签来自 OilPrice.com 实时地缘能源新闻（每4h更新）。即将发生事件使用 ForexFactory 经济日历 + 静态日程（未来6个月）。
       </p>
     </div>
   )
