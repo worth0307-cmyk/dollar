@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { PAST_EVENTS, UPCOMING_EVENTS } from '@/lib/events'
+import { RELEASE_EVENTS } from '@/lib/releases'
 import { fetchUpcomingFromFF, type CalendarDebug } from '@/lib/calendar'
 import { cacheGet, cacheSet } from '@/lib/cache'
 
@@ -8,9 +9,12 @@ export const dynamic = 'force-dynamic'
 const CACHE_KEY = 'macro_events'
 const TTL = 60 * 60_000  // 1 hour
 
+// Historical list = narrative events (lib/events.ts) + data releases whose
+// beat/miss outcome is auto-derived from actual-vs-forecast (lib/releases.ts).
 function staticPast() {
   const today = new Date().toISOString().slice(0, 10)
-  return PAST_EVENTS.filter((e) => e.date <= today)
+  return [...PAST_EVENTS, ...RELEASE_EVENTS]
+    .filter((e) => e.date <= today)
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 20)
 }

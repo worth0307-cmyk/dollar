@@ -168,15 +168,6 @@ export const PAST_EVENTS: MacroEvent[] = [
     url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
   },
   {
-    date: '2026-02-11',
-    title: '美国 CPI 数据（1月）',
-    description: '年初通胀数据。核心CPI走势决定市场对上半年降息的押注，美元与黄金反应明显。',
-    impact: 'medium',
-    assets: ['dxy', 'gold', 'sp500'],
-    type: 'past',
-    url: 'https://www.bls.gov/cpi/',
-  },
-  {
     date: '2026-03-18',
     title: 'FOMC 利率决议 + 点阵图',
     description: '附带季度经济预测（SEP）。点阵图显示的2026年降息次数指引引发跨资产波动。',
@@ -193,15 +184,6 @@ export const PAST_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'sp500', 'btc'],
     type: 'past',
     url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
-  },
-  {
-    date: '2026-05-13',
-    title: '美国 CPI 数据（4月）',
-    description: '4月通胀数据。市场据此重新定价6月与7月FOMC的降息概率。',
-    impact: 'medium',
-    assets: ['dxy', 'gold', 'sp500'],
-    type: 'past',
-    url: 'https://www.bls.gov/cpi/',
   },
   {
     date: '2026-06-17',

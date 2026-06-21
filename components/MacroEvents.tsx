@@ -190,7 +190,7 @@ export default function MacroEvents({ past, upcoming }: Props) {
       </div>
 
       <p className="text-[10px] text-gray-600 mt-2">
-        历史事件来源：<code className="text-gray-500">lib/events.ts</code> 静态标注（超预期/不及预期由人工判定）。即将发生事件优先使用 ForexFactory 经济日历实时预期数据，不可用时回退静态日程。
+        历史事件：经济数据（CPI/非农等）在 <code className="text-gray-500">lib/releases.ts</code> 录入实际值与预期值，超预期(利好)/不及预期(利空)按指标方向自动判定；地缘/政策类事件在 <code className="text-gray-500">lib/events.ts</code> 人工标注。即将发生事件优先使用 ForexFactory 经济日历实时预期。
       </p>
     </div>
   )
