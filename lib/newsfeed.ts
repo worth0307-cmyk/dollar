@@ -77,18 +77,19 @@ function dedup(articles: GdeltArticle[]): GdeltArticle[] {
   })
 }
 
-// Broad energy + geopolitical keyword set. GDELT's boolean parser is finicky
-// with very long OR chains, so we keep this to a tight, reliable set.
-const GDELT_QUERY =
-  '"crude oil" OR OPEC OR "Strait of Hormuz" OR "oil sanctions" OR "oil supply" OR "energy crisis" OR "oil tanker"'
+// Tight keyword set. GDELT's DOC API gets slow with long OR chains, wide
+// timespans, and sorting — all of which we trim aggressively to stay well
+// under the request timeout.
+const GDELT_QUERY = '"crude oil" OR OPEC OR "Strait of Hormuz" OR "oil price"'
+
+const GDELT_TIMEOUT = 12_000
 
 function buildUrl(): string {
   const qs = new URLSearchParams({
     query: GDELT_QUERY,
     mode: 'artlist',
-    maxrecords: '60',
-    timespan: '30d',
-    sort: 'datedesc',
+    maxrecords: '25',
+    timespan: '72h',  // smaller window = far less to scan = faster response
     format: 'json',
   })
   return `https://api.gdeltproject.org/api/v2/doc/doc?${qs}`
@@ -103,7 +104,7 @@ async function rawFetch(): Promise<{ status: number; body: string }> {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     },
-    signal: AbortSignal.timeout(8_000),
+    signal: AbortSignal.timeout(GDELT_TIMEOUT),
   })
   const body = await res.text()
   return { status: res.status, body }

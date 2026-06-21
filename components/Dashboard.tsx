@@ -69,11 +69,22 @@ export default function Dashboard() {
     { revalidateOnFocus: false, refreshInterval: 0 }
   )
 
+  // Geopolitical news is fetched separately so a slow GDELT never blocks events.
+  const { data: newsData } = useSWR<{ news: MacroEvent[] }>(
+    '/api/news',
+    fetcher,
+    { revalidateOnFocus: false, refreshInterval: 30 * 60_000 }
+  )
+
   const series      = history?.series      ?? []
   const correlation = history?.correlation ?? { keys: [], matrix: [] }
   const moves       = history?.moves       ?? []
   const stats       = history?.stats       ?? {}
-  const allEvents   = [...(eventsData?.past ?? []), ...(eventsData?.upcoming ?? [])]
+  const news        = newsData?.news        ?? []
+  // Merge news into the history list (deduped is unnecessary — disjoint sources)
+  const pastEvents  = [...(eventsData?.past ?? []), ...news]
+    .sort((a, b) => b.date.localeCompare(a.date))
+  const allEvents   = [...pastEvents, ...(eventsData?.upcoming ?? [])]
 
   const toggleAsset = (key: string) =>
     setSelectedAsset((prev) => (prev === key ? null : key))
@@ -287,7 +298,7 @@ export default function Dashboard() {
             <span className="text-[10px] text-gray-500">重大宏观事件与日程</span>
           </div>
           <MacroEvents
-            past={eventsData?.past ?? []}
+            past={pastEvents}
             upcoming={eventsData?.upcoming ?? []}
           />
         </div>
