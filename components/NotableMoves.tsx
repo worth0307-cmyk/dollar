@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useEffect } from 'react'
-import { ASSET_BY_KEY } from '@/lib/assets'
+import { useRef, useEffect, useState } from 'react'
+import { ASSETS, ASSET_BY_KEY } from '@/lib/assets'
 import type { MacroEvent } from '@/lib/events'
 
 interface Move {
@@ -55,7 +55,15 @@ export default function NotableMoves({
   selectedMove?: { key: string; time: number } | null
   onSelectMove?: (m: { key: string; time: number }) => void
 }) {
+  const [filter, setFilter] = useState<Set<string>>(new Set())
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+
+  const toggleFilter = (key: string) =>
+    setFilter((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
 
   useEffect(() => {
     if (!selectedMove) return
@@ -64,6 +72,8 @@ export default function NotableMoves({
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [selectedMove])
 
+  const displayed = filter.size > 0 ? moves.filter((m) => filter.has(m.key)) : moves
+
   if (!moves?.length) {
     return (
       <div className="text-sm text-slate-500 py-6 text-center">此区间无明显异动</div>
@@ -71,8 +81,39 @@ export default function NotableMoves({
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto space-y-0.5">
-      {moves.map((m, i) => {
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* Asset filter chips */}
+      <div className="flex gap-1 flex-wrap mb-2">
+        {ASSETS.map((a) => {
+          const on = filter.has(a.key)
+          const count = moves.filter((m) => m.key === a.key).length
+          return (
+            <button
+              key={a.key}
+              onClick={() => toggleFilter(a.key)}
+              title={`筛选 ${a.symbol}（${count}）`}
+              className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border transition-colors ${
+                on
+                  ? 'border-transparent text-gray-900 font-medium'
+                  : 'border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-600'
+              }`}
+              style={on ? { backgroundColor: a.color, borderColor: a.color } : {}}
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: on ? 'rgba(0,0,0,0.4)' : a.color }}
+              />
+              {a.symbol}
+              <span className={on ? 'opacity-70' : 'opacity-60'}>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-0.5">
+      {displayed.length === 0 ? (
+        <div className="text-sm text-slate-500 py-6 text-center">无匹配记录</div>
+      ) : displayed.map((m, i) => {
         const meta = ASSET_BY_KEY[m.key]
         const up = m.changePct >= 0
         const near = nearestEvent(m.time, events)
@@ -152,6 +193,7 @@ export default function NotableMoves({
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

@@ -51,18 +51,16 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
           className={`flex items-start gap-3 ${clickable ? 'cursor-pointer select-none' : ''}`}
           onClick={clickable ? () => setExpanded((e) => !e) : undefined}
         >
-          {/* Title block — fixed width so detail sits to its right */}
+          {/* Title block — for news only shows date + badge; title moves to detail */}
           <div className="w-44 shrink-0">
             <span className="text-[11px] font-mono text-slate-300 block">{fmtDate(event.date)}</span>
-            <span className="text-sm font-medium text-gray-100">{event.title}</span>
+            {!isNews && <span className="text-sm font-medium text-gray-100">{event.title}</span>}
             <div className="mt-0.5 flex flex-wrap gap-1">
-              {/* News source badge */}
-              {event.source === 'news' && (
+              {isNews && (
                 <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/25">
                   新闻
                 </span>
               )}
-              {/* Auto-detected outcome badge for past events */}
               {autoOutcome && (
                 <span
                   className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
@@ -79,7 +77,11 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
 
           {/* Detail — always visible, fills available width */}
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-gray-100 leading-relaxed">{event.description}</p>
+            {/* News: English headline sits at the top of the detail area */}
+            {isNews && (
+              <p className="text-sm font-medium text-gray-100 leading-snug mb-1">{event.title}</p>
+            )}
+            <p className="text-xs text-gray-400 leading-relaxed">{event.description}</p>
             <div className="mt-1.5 flex gap-1 flex-wrap">
               {event.assets.map((k) => (
                 <span
@@ -94,15 +96,6 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
                 </span>
               ))}
             </div>
-
-            {/* News: source attribution line, styled like the outcome analysis */}
-            {isNews && (
-              <div className="mt-2">
-                <div className="text-xs text-sky-400/80 leading-snug">
-                  <span className="font-mono font-medium">📰 来源：</span>OilPrice.com · 实时地缘能源新闻
-                </div>
-              </div>
-            )}
 
             {/* Past events: show only the matched outcome analysis */}
             {autoOutcome && (

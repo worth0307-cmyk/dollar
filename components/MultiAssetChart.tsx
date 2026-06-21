@@ -124,7 +124,6 @@ export default function MultiAssetChart({
   selectedMove,
 }: Props) {
   const [hidden, setHidden] = useState<Set<string>>(new Set())
-  const [hoveredDot, setHoveredDot] = useState<string | null>(null)
 
   const toggle = (key: string) =>
     setHidden((prev) => {
@@ -263,33 +262,24 @@ export default function MultiAssetChart({
                       if (cx == null || cy == null || !assetMoves) return <g key={index} />
                       const move = assetMoves.get(payload?.time)
                       if (!move) return <g key={index} />
-                      if (hidden.has(a.key)) return <g key={index} />
-                      if (selectedKey != null && a.key !== selectedKey) return <g key={index} />
 
-                      const dotKey = `${a.key}-${move.time}`
                       const isSelected = selectedMove?.key === a.key && selectedMove?.time === move.time
-                      const isHovered = hoveredDot === dotKey
-                      const r = isSelected ? 7 : isHovered ? 6 : 4
+                      // Dots are hidden by default; only the selected move's dot renders.
+                      if (!isSelected) return <g key={index} />
 
                       return (
-                        <g
-                          key={index}
-                          onMouseEnter={() => setHoveredDot(dotKey)}
-                          onMouseLeave={() => setHoveredDot(null)}
-                        >
-                          {/* Pulsing ring when selected */}
-                          {isSelected && (
-                            <circle cx={cx} cy={cy} r={7} fill="none" stroke={a.color} strokeWidth={1.5}>
-                              <animate attributeName="r" from="7" to="20" dur="1.5s" repeatCount="indefinite" />
-                              <animate attributeName="stroke-opacity" from="0.7" to="0" dur="1.5s" repeatCount="indefinite" />
-                            </circle>
-                          )}
+                        <g key={index}>
+                          {/* Pulsing ring */}
+                          <circle cx={cx} cy={cy} r={7} fill="none" stroke={a.color} strokeWidth={1.5}>
+                            <animate attributeName="r" from="7" to="20" dur="1.5s" repeatCount="indefinite" />
+                            <animate attributeName="stroke-opacity" from="0.7" to="0" dur="1.5s" repeatCount="indefinite" />
+                          </circle>
                           <circle
-                            cx={cx} cy={cy} r={r}
+                            cx={cx} cy={cy} r={7}
                             fill={a.color}
-                            fillOpacity={isSelected ? 0.9 : isHovered ? 0.7 : 0.3}
+                            fillOpacity={0.9}
                             stroke={a.color}
-                            strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1}
+                            strokeWidth={2}
                           />
                         </g>
                       )
