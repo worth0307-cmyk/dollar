@@ -7,5 +7,10 @@
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
+  },
+  // Workers AI binding — runs the translation model in-Worker, no account id or
+  // API token needed. Free-tier neuron allowance applies (guarded in aibudget.ts).
+  "ai": {
+    "binding": "AI"
   }
 }

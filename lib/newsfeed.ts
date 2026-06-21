@@ -182,28 +182,69 @@ async function cfCreds(): Promise<{ id: string; token: string; source: string }>
 // MyMemory raises its anonymous per-IP quota when a contact email is supplied.
 const TRANSLATE_EMAIL = (process.env.MYMEMORY_EMAIL ?? 'worth0307@gmail.com').trim()
 
-// Detailed Workers AI call — returns the translation plus diagnostics (HTTP
-// status, error snippet, whether it was budget-blocked) so the ?debug endpoint
-// can pinpoint why a title stayed English. `zh === text` means "no translation".
+// The in-Worker Workers AI binding (env.AI), if present. This is the preferred
+// path: it needs NO account id and NO API token, so it can't fail with
+// cfConfigured:false the way the REST API does. Returns null off-Workers.
+type AiBinding = { run: (model: string, inputs: unknown) => Promise<unknown> }
+async function aiBinding(): Promise<AiBinding | null> {
+  try {
+    const { env } = await getCloudflareContext({ async: true })
+    const ai = (env as Record<string, unknown>).AI as AiBinding | undefined
+    return ai && typeof ai.run === 'function' ? ai : null
+  } catch {
+    return null
+  }
+}
+
+// Detailed Workers AI call — returns the translation plus diagnostics (which
+// path was used, HTTP status, error snippet, whether it was budget-blocked) so
+// the ?debug endpoint can pinpoint why a title stayed English. `zh === text`
+// means "no translation".
 interface WaiResult {
   zh: string
   configured: boolean
+  via?: 'binding' | 'rest'
   blocked?: boolean
   status?: number
   error?: string
 }
 
 async function translateViaWorkersAIDetailed(text: string): Promise<WaiResult> {
+  const ai = await aiBinding()
   const { id, token } = await cfCreds()
-  if (!id || !token) return { zh: text, configured: false, error: 'CF_ACCOUNT_ID / CF_AI_TOKEN not set' }
+  if (!ai && !(id && token)) {
+    return { zh: text, configured: false, error: 'no AI binding; CF_ACCOUNT_ID / CF_AI_TOKEN not set' }
+  }
+
   // Daily budget guard: once 70% of the free neuron allowance is reached, stop
   // calling Workers AI and fall back to English — never spill into paid usage.
   if (!canSpend()) {
     recordBlocked()
     return { zh: text, configured: true, blocked: true, error: 'daily budget cap reached' }
   }
+  recordSpend() // count one translation attempt up-front (conservative)
+  const inputs = { text, source_lang: 'english', target_lang: 'chinese' }
+
+  // Preferred path: the in-Worker AI binding.
+  if (ai) {
+    try {
+      const out = (await ai.run(CF_AI_MODEL, inputs)) as { translated_text?: string }
+      const translated = out?.translated_text ?? ''
+      if (translated && translated.trim() !== text.trim()) {
+        return { zh: translated, configured: true, via: 'binding', status: 200 }
+      }
+      // Empty/identical → fall through to REST if creds exist, else give up.
+      if (!(id && token)) {
+        return { zh: text, configured: true, via: 'binding', status: 200, error: 'binding empty/identical result' }
+      }
+    } catch (e) {
+      if (!(id && token)) return { zh: text, configured: true, via: 'binding', error: String(e) }
+      // else fall through to REST
+    }
+  }
+
+  // Fallback path: REST API (needs CF_ACCOUNT_ID + CF_AI_TOKEN).
   try {
-    recordSpend() // count the attempt up-front (conservative)
     const res = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${id}/ai/run/${CF_AI_MODEL}`,
       {
@@ -212,22 +253,22 @@ async function translateViaWorkersAIDetailed(text: string): Promise<WaiResult> {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text, source_lang: 'english', target_lang: 'chinese' }),
+        body: JSON.stringify(inputs),
         signal: AbortSignal.timeout(TRANSLATE_TIMEOUT),
       }
     )
     if (!res.ok) {
       const body = await res.text().catch(() => '')
-      return { zh: text, configured: true, status: res.status, error: body.slice(0, 200) }
+      return { zh: text, configured: true, via: 'rest', status: res.status, error: body.slice(0, 200) }
     }
     const json: any = await res.json()
     const translated: string = json?.result?.translated_text ?? ''
     if (!translated || translated.trim() === text.trim()) {
-      return { zh: text, configured: true, status: res.status, error: 'empty or identical result' }
+      return { zh: text, configured: true, via: 'rest', status: res.status, error: 'empty or identical result' }
     }
-    return { zh: translated, configured: true, status: res.status }
+    return { zh: translated, configured: true, via: 'rest', status: res.status }
   } catch (e) {
-    return { zh: text, configured: true, error: String(e) }
+    return { zh: text, configured: true, via: 'rest', error: String(e) }
   }
 }
 
@@ -282,17 +323,20 @@ async function translateOne(text: string): Promise<string> {
 // failing title can be diagnosed (bad token, wrong account id, model, quota…).
 export async function translateProbe(sample: string): Promise<Record<string, unknown>> {
   const { id, token, source } = await cfCreds()
+  const aiBindingPresent = !!(await aiBinding())
   const wai = await translateViaWorkersAIDetailed(sample)
   const viaCf = wai.zh
   const viaMyMemory = viaCf !== sample ? '(skipped — Workers AI succeeded)' : await translateViaMyMemory(sample)
   const result = viaCf !== sample ? viaCf : viaMyMemory
   return {
     cfConfigured: wai.configured,
-    cfCredSource: source || 'none', // process.env | cf-binding | none
+    aiBindingPresent, // true once the wrangler `ai` binding is deployed
+    cfCredSource: source || 'none', // process.env | cf-binding | none (REST fallback creds)
     cfAccountIdLen: id.length, // length only — never expose the value
     cfTokenLen: token.length,
     sample,
     workersAI: viaCf !== sample ? viaCf : '(no result)',
+    workersAIVia: wai.via ?? null, // binding | rest | null
     workersAIStatus: wai.status ?? null,
     workersAIError: wai.error ?? null,
     workersAIBlocked: wai.blocked ?? false,
