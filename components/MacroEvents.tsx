@@ -198,9 +198,9 @@ export default function MacroEvents({ past, upcoming }: Props) {
 
   const base = tab === 'past' ? past : upcoming
   const events = (() => {
-    if (tab !== 'past') return base
     let result = base
-    if (filters.size > 0) result = result.filter((e) => [...filters].some((f) => matchesFilter(e, f)))
+    // Outcome/news filters only make sense on 历史事件; asset filters apply to both tabs.
+    if (tab === 'past' && filters.size > 0) result = result.filter((e) => [...filters].some((f) => matchesFilter(e, f)))
     if (assetFilters.size > 0) result = result.filter((e) => e.assets.some((a) => assetFilters.has(a)))
     return result
   })()
@@ -226,10 +226,10 @@ export default function MacroEvents({ past, upcoming }: Props) {
           </button>
         ))}
 
-        {/* Filter chips — only meaningful on the 历史事件 tab */}
-        {tab === 'past' && (
-          <div className="flex items-center gap-1 ml-auto flex-wrap">
-            {FILTERS.map((f) => {
+        {/* Filter chips — outcome/news only on 历史事件; asset chips on both tabs */}
+        <div className="flex items-center gap-1 ml-auto flex-wrap">
+          {tab === 'past' &&
+            FILTERS.map((f) => {
               const on = filters.has(f.key)
               const count = past.filter((e) => matchesFilter(e, f.key)).length
               return (
@@ -247,37 +247,36 @@ export default function MacroEvents({ past, upcoming }: Props) {
                 </button>
               )
             })}
-            {ASSETS.map((a) => {
-              const on = assetFilters.has(a.key)
-              const count = past.filter((e) => e.assets.includes(a.key)).length
-              return (
-                <button
-                  key={a.key}
-                  onClick={() => toggleAssetFilter(a.key)}
-                  title={`筛选 ${a.symbol}（${count}）`}
-                  className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors ${
-                    on ? 'border-transparent text-gray-900 font-medium' : 'border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-600'
-                  }`}
-                  style={on ? { backgroundColor: a.color, borderColor: a.color } : {}}
-                >
-                  <span
-                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ backgroundColor: on ? 'rgba(0,0,0,0.4)' : a.color }}
-                  />
-                  {a.symbol}
-                  <span className={on ? 'opacity-70' : 'opacity-60'}>{count}</span>
-                </button>
-              )
-            })}
-          </div>
-        )}
+          {ASSETS.map((a) => {
+            const on = assetFilters.has(a.key)
+            const count = base.filter((e) => e.assets.includes(a.key)).length
+            return (
+              <button
+                key={a.key}
+                onClick={() => toggleAssetFilter(a.key)}
+                title={`筛选 ${a.symbol}（${count}）`}
+                className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors ${
+                  on ? 'border-transparent text-gray-900 font-medium' : 'border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-600'
+                }`}
+                style={on ? { backgroundColor: a.color, borderColor: a.color } : {}}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: on ? 'rgba(0,0,0,0.4)' : a.color }}
+                />
+                {a.symbol}
+                <span className={on ? 'opacity-70' : 'opacity-60'}>{count}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Scrollable list — pr-3 keeps badge clear of scrollbar */}
       <div className="flex-1 min-h-0 overflow-y-auto pr-3">
         {events.length === 0 ? (
           <div className="text-sm text-gray-100 py-4 text-center">
-            {tab === 'past' && (filters.size > 0 || assetFilters.size > 0) ? '无匹配的筛选结果' : '暂无数据'}
+            {filters.size > 0 || assetFilters.size > 0 ? '无匹配的筛选结果' : '暂无数据'}
           </div>
         ) : (
           events.map((e, i) => (

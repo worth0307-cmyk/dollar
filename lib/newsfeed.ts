@@ -154,12 +154,41 @@ async function translateOne(text: string): Promise<string> {
     })
     if (!res.ok) return text
     const json = await res.json()
+    // MyMemory returns HTTP 200 even on quota/errors; the true status lives in
+    // the body. responseStatus !== 200 means quota exhausted / bad langpair etc.
+    if (json?.responseStatus && Number(json.responseStatus) !== 200) return text
     const translated: string = json?.responseData?.translatedText ?? ''
-    // MyMemory returns the original text (or error strings) when translation fails
-    if (!translated || translated === text || /MYMEMORY|QUERY|ERROR|LIMIT/i.test(translated)) return text
+    if (!translated || translated.trim() === text.trim()) return text
+    // Guard against warning strings leaking through as if they were translations.
+    if (/MYMEMORY WARNING|INVALID|USED ALL|NEXT AVAILABLE/i.test(translated)) return text
     return translated
   } catch {
     return text
+  }
+}
+
+// Exposed for the ?debug=1 endpoint so translation can be verified live,
+// bypassing the news cache. Returns the raw MyMemory response fields.
+export async function translateProbe(sample: string): Promise<Record<string, unknown>> {
+  const emailSent = !!TRANSLATE_EMAIL
+  const qs = new URLSearchParams({ q: sample, langpair: 'en|zh-CN' })
+  if (TRANSLATE_EMAIL) qs.set('de', TRANSLATE_EMAIL)
+  try {
+    const res = await fetch(`https://api.mymemory.translated.net/get?${qs}`, {
+      signal: AbortSignal.timeout(TRANSLATE_TIMEOUT),
+    })
+    const json: any = await res.json().catch(() => null)
+    return {
+      emailSent,
+      httpStatus: res.status,
+      responseStatus: json?.responseStatus,
+      quotaFinished: json?.quotaFinished,
+      rawTranslatedText: json?.responseData?.translatedText,
+      sample,
+      result: await translateOne(sample),
+    }
+  } catch (e) {
+    return { emailSent, sample, error: String(e) }
   }
 }
 
@@ -222,12 +251,14 @@ export async function newsProbe(): Promise<Record<string, unknown>> {
     const { status, body } = await rawFetch()
     const items = parseRss(body)
     const events = await toEvents(items)
+    const translation = await translateProbe(items[0]?.title ?? 'Oil prices rise on supply concerns')
     return {
       url: FEED_URL,
       httpStatus: status,
       bodyStart: body.slice(0, 160),
       itemCount: items.length,
       eventCount: events.length,
+      translation,
       sample: events.slice(0, 3).map((e) => ({ date: e.date, title: e.title, assets: e.assets })),
     }
   } catch (e) {
