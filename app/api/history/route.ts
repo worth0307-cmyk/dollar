@@ -36,6 +36,24 @@ function buildMaps(
   })
 }
 
+// Notable moves are computed once over a stable ~1Y window so a day's z-score
+// (its "abnormality") is an intrinsic property, independent of the chart range
+// being viewed. The route then slices these to the display window — making the
+// shorter ranges strict subsets of 1Y instead of re-normalizing σ per range.
+async function getYearMoves(): Promise<ReturnType<typeof notableMoves>> {
+  const cacheKey = 'moves:1y'
+  const hit = cacheGet<ReturnType<typeof notableMoves>>(cacheKey)
+  if (hit) return hit
+
+  const results = await Promise.allSettled(KEYS.map((k) => fetchYahooHistory(k, '1y', '1d')))
+  const maps = buildMaps(results)
+  // High cap so we keep every >2σ day in the year; the route caps display to 20.
+  const moves = notableMoves(KEYS, maps, 1000, 2)
+
+  cacheSet(cacheKey, moves, YTD_BASELINE_TTL)
+  return moves
+}
+
 // Fetch year-to-date baseline prices (Jan 1 of current year) — cached separately.
 async function getYtdBases(): Promise<(number | null)[]> {
   const cacheKey = 'ytd:bases'
@@ -108,10 +126,16 @@ export async function GET(request: Request) {
     return row
   })
 
+  // Stable-σ moves from the 1Y baseline, sliced to the displayed window so that
+  // e.g. 3M is a strict subset of 1Y (no per-range σ re-normalization).
+  const yearMoves = await getYearMoves()
+  const displayStart = dates.length ? new Date(dates[0]).getTime() : 0
+  const moves = yearMoves.filter((m) => m.time >= displayStart).slice(0, 20)
+
   const payload: HistoryPayload = {
     series,
     correlation: { keys: KEYS, matrix: correlationMatrix(KEYS, maps) },
-    moves: notableMoves(KEYS, maps),
+    moves,
     stats: periodStats(KEYS, maps),
   }
 

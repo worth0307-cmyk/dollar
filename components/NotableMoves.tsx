@@ -112,8 +112,12 @@ export default function NotableMoves({
               {up ? '+' : ''}{m.changePct.toFixed(2)}%
             </span>
 
-            {/* Nearest event */}
+            {/* Nearest event — blank is legitimate (no macro event in the
+                causal window), shown explicitly rather than left empty. */}
             <div className="flex-1 min-w-0 mx-1">
+              {!near && (
+                <span className="text-xs text-gray-700 italic">无关联事件</span>
+              )}
               {near && (
                 <div className="flex items-center gap-1 min-w-0">
                   <span
