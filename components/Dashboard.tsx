@@ -44,7 +44,7 @@ function riskSentiment(market: MarketAsset[] | undefined) {
 }
 
 export default function Dashboard() {
-  const [range, setRange]           = useState('1mo')
+  const [range, setRange]           = useState('3mo')
   const [anchor, setAnchor]         = useState<'period' | 'ytd'>('ytd')
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null)
@@ -100,7 +100,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen text-gray-100 p-4 md:p-6 max-w-[1600px] mx-auto w-full">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-6 animate-fade-up">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3 animate-fade-up">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             <span className="gradient-text">MARKET</span>
@@ -111,17 +111,17 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-3 sm:gap-5 flex-wrap">
           {/* Live dot */}
           <div className="flex items-center gap-2 text-xs">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot" />
             <span className="text-gray-500 font-mono">LIVE</span>
           </div>
 
-          {/* Risk sentiment */}
+          {/* Risk sentiment — hidden on small screens to prevent overflow */}
           {risk && (
             <div
-              className="px-3 py-1.5 rounded-lg border text-center"
+              className="hidden sm:block px-3 py-1.5 rounded-lg border text-center"
               style={{
                 backgroundColor: risk.bg,
                 borderColor: `${risk.color}30`,
@@ -135,9 +135,20 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* Risk pill for mobile — compact version */}
+          {risk && (
+            <div
+              className="flex sm:hidden items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium"
+              style={{ color: risk.color, borderColor: `${risk.color}30`, backgroundColor: risk.bg }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: risk.color }} />
+              {risk.label}
+            </div>
+          )}
+
           {/* Clock */}
           <div className="text-right">
-            <div className="font-mono text-xl text-gray-200 tracking-widest">{now}</div>
+            <div className="font-mono text-lg sm:text-xl text-gray-200 tracking-widest">{now}</div>
             {lastUpdated && (
               <div className="text-[10px] text-gray-500 font-mono">
                 updated {lastUpdated.toLocaleTimeString('zh-CN', { hour12: false })}
@@ -148,7 +159,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Price Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-4">
         {marketLoading
           ? Array.from({ length: 5 }).map((_, i) => (
               <div
@@ -174,20 +185,20 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4 items-stretch">
         {/* Chart (2/3 width) */}
         <div className="lg:col-span-2 rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
-          <div className="flex items-center justify-between mb-1">
-            <div>
+          <div className="flex items-start justify-between gap-2 mb-1 flex-wrap">
+            <div className="min-w-0">
               <h2 className="text-sm font-semibold text-gray-100">Performance</h2>
-              <p className="text-[10px] text-gray-500">
+              <p className="text-[10px] text-gray-500 hidden sm:block">
                 归一化涨跌幅 · 点击图例隐藏/显示 · 圆点 = 异常波动日
                 {selectedAsset && <span className="text-blue-400 ml-2">· 已锁定高亮</span>}
               </p>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1 shrink-0">
               {RANGES.map((r) => (
                 <button
                   key={r.value}
                   onClick={() => setRange(r.value)}
-                  className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
+                  className={`px-2 sm:px-3 py-1 text-xs rounded-md font-medium transition-all ${
                     range === r.value
                       ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 shadow-[0_0_8px_rgba(96,165,250,0.3)]'
                       : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/60'
@@ -250,7 +261,7 @@ export default function Dashboard() {
 
       {/* ── Notable Moves + Macro Events (side by side, 2:3 split) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4 items-stretch">
-        <div className="lg:col-span-2 lg:h-[440px] rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
+        <div className="lg:col-span-2 h-[420px] lg:h-[440px] rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
           <div className="flex items-baseline justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-100">Notable Moves</h2>
             <span className="text-[10px] text-gray-500">单日 &gt; 2σ 异动</span>
@@ -269,7 +280,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="lg:col-span-3 lg:h-[440px] rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
+        <div className="lg:col-span-3 h-[520px] lg:h-[440px] rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
           <div className="flex items-baseline justify-between mb-1">
             <h2 className="text-sm font-semibold text-gray-100">Macro Events</h2>
             <span className="text-[10px] text-gray-500">重大宏观事件与日程</span>

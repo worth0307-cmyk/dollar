@@ -128,9 +128,11 @@ export async function GET(request: Request) {
 
   // Stable-σ moves from the 1Y baseline, sliced to the displayed window so that
   // e.g. 3M is a strict subset of 1Y (no per-range σ re-normalization).
+  // topN scales with range: wider windows surface more historical context.
+  const topN = ({ '5d': 10, '1mo': 20, '3mo': 30, '1y': 50 } as Record<string, number>)[range] ?? 20
   const yearMoves = await getYearMoves()
   const displayStart = dates.length ? new Date(dates[0]).getTime() : 0
-  const moves = yearMoves.filter((m) => m.time >= displayStart).slice(0, 20)
+  const moves = yearMoves.filter((m) => m.time >= displayStart).slice(0, topN)
 
   const payload: HistoryPayload = {
     series,

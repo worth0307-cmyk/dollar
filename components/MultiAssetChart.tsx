@@ -26,14 +26,16 @@ interface Move {
   z: number
 }
 
-function formatTime(ts: number) {
+// X-axis ticks: compact, no year (avoids crowding)
+function formatAxisTick(ts: number) {
   const d = new Date(ts)
   return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }).replace('/', '.')
 }
 
-function fmtDate(ts: number) {
+// Tooltip date: always includes year so the reader knows which year they're in
+function formatTooltipDate(ts: number) {
   const d = new Date(ts)
-  return `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
 }
 
 function fmtPrice(price: number | null | undefined, key: string) {
@@ -68,7 +70,7 @@ function CustomTooltip({ active, payload, label }: any) {
 
   return (
     <div className="bg-gray-900/95 border border-gray-600/60 rounded-xl p-3.5 shadow-2xl text-xs backdrop-blur-sm">
-      <div className="text-gray-400 mb-2.5 font-mono text-[11px]">{formatTime(label)}</div>
+      <div className="text-gray-400 mb-2.5 font-mono text-[11px]">{formatTooltipDate(label)}</div>
       {items.map((it: any) => {
         const meta = ASSET_BY_KEY[it.baseKey]
         return (
@@ -210,7 +212,7 @@ export default function MultiAssetChart({
       </div>
 
       {/* Chart */}
-      <div className="flex-1 min-h-[300px]">
+      <div className="flex-1 min-h-[240px] sm:min-h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 8, bottom: 4, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
@@ -219,7 +221,7 @@ export default function MultiAssetChart({
                 type="number"
                 scale="time"
                 domain={['dataMin', 'dataMax']}
-                tickFormatter={formatTime}
+                tickFormatter={formatAxisTick}
                 tick={{ fill: '#475569', fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
