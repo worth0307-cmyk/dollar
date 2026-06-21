@@ -143,7 +143,7 @@ const FEED_URL = 'https://oilprice.com/rss/main'
 // PER IP; setting MYMEMORY_EMAIL raises it to ~50000/day keyed to the email,
 // which avoids exhausting the shared Cloudflare egress IP's quota.
 // Falls back to the original English title on any error.
-const TRANSLATE_EMAIL = process.env.MYMEMORY_EMAIL
+const TRANSLATE_EMAIL = process.env.MYMEMORY_EMAIL ?? 'worth0307@gmail.com'
 
 async function translateOne(text: string): Promise<string> {
   try {
@@ -187,7 +187,6 @@ async function toEvents(items: NewsItem[]): Promise<MacroEvent[]> {
     .filter((a) => a.title.length > 10)
     .slice(0, 12)
 
-  // Translate all headlines in parallel; falls back to English on any error.
   const translated = await translateAll(candidates.map((a) => a.title))
 
   return candidates

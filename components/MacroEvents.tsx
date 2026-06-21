@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ASSET_BY_KEY } from '@/lib/assets'
+import { ASSETS, ASSET_BY_KEY } from '@/lib/assets'
 import type { MacroEvent } from '@/lib/events'
 
 function fmtDate(d: string) {
@@ -180,6 +180,7 @@ function matchesFilter(e: MacroEvent, f: FilterKey): boolean {
 export default function MacroEvents({ past, upcoming }: Props) {
   const [tab, setTab] = useState<'past' | 'upcoming'>('upcoming')
   const [filters, setFilters] = useState<Set<FilterKey>>(new Set())
+  const [assetFilters, setAssetFilters] = useState<Set<string>>(new Set())
 
   const toggleFilter = (k: FilterKey) =>
     setFilters((prev) => {
@@ -188,12 +189,21 @@ export default function MacroEvents({ past, upcoming }: Props) {
       return next
     })
 
+  const toggleAssetFilter = (k: string) =>
+    setAssetFilters((prev) => {
+      const next = new Set(prev)
+      next.has(k) ? next.delete(k) : next.add(k)
+      return next
+    })
+
   const base = tab === 'past' ? past : upcoming
-  // Filters only apply to the 历史事件 tab (upcoming has no outcome/news).
-  const events =
-    tab === 'past' && filters.size > 0
-      ? base.filter((e) => [...filters].some((f) => matchesFilter(e, f)))
-      : base
+  const events = (() => {
+    if (tab !== 'past') return base
+    let result = base
+    if (filters.size > 0) result = result.filter((e) => [...filters].some((f) => matchesFilter(e, f)))
+    if (assetFilters.size > 0) result = result.filter((e) => e.assets.some((a) => assetFilters.has(a)))
+    return result
+  })()
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -218,7 +228,7 @@ export default function MacroEvents({ past, upcoming }: Props) {
 
         {/* Filter chips — only meaningful on the 历史事件 tab */}
         {tab === 'past' && (
-          <div className="flex items-center gap-1 ml-auto">
+          <div className="flex items-center gap-1 ml-auto flex-wrap">
             {FILTERS.map((f) => {
               const on = filters.has(f.key)
               const count = past.filter((e) => matchesFilter(e, f.key)).length
@@ -237,6 +247,28 @@ export default function MacroEvents({ past, upcoming }: Props) {
                 </button>
               )
             })}
+            {ASSETS.map((a) => {
+              const on = assetFilters.has(a.key)
+              const count = past.filter((e) => e.assets.includes(a.key)).length
+              return (
+                <button
+                  key={a.key}
+                  onClick={() => toggleAssetFilter(a.key)}
+                  title={`筛选 ${a.symbol}（${count}）`}
+                  className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors ${
+                    on ? 'border-transparent text-gray-900 font-medium' : 'border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-600'
+                  }`}
+                  style={on ? { backgroundColor: a.color, borderColor: a.color } : {}}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ backgroundColor: on ? 'rgba(0,0,0,0.4)' : a.color }}
+                  />
+                  {a.symbol}
+                  <span className={on ? 'opacity-70' : 'opacity-60'}>{count}</span>
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
@@ -245,7 +277,7 @@ export default function MacroEvents({ past, upcoming }: Props) {
       <div className="flex-1 min-h-0 overflow-y-auto pr-3">
         {events.length === 0 ? (
           <div className="text-sm text-gray-100 py-4 text-center">
-            {tab === 'past' && filters.size > 0 ? '无匹配的筛选结果' : '暂无数据'}
+            {tab === 'past' && (filters.size > 0 || assetFilters.size > 0) ? '无匹配的筛选结果' : '暂无数据'}
           </div>
         ) : (
           events.map((e, i) => (
@@ -254,9 +286,7 @@ export default function MacroEvents({ past, upcoming }: Props) {
         )}
       </div>
 
-      <p className="text-[10px] text-gray-100 mt-2">
-        历史事件：经济数据超预期/不及预期按 <code className="text-gray-200">lib/releases.ts</code> 中的实际值与预期值自动判定；地缘/政策事件人工标注；<span className="text-sky-400">新闻</span> 标签来自 OilPrice.com 实时地缘能源新闻（每4h更新）。即将发生事件使用 ForexFactory 经济日历 + 静态日程（未来6个月）。
-      </p>
+
     </div>
   )
 }
