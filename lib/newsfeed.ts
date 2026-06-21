@@ -135,8 +135,31 @@ function dedup(items: NewsItem[]): NewsItem[] {
 }
 
 const NEWS_TIMEOUT = 10_000
+const TRANSLATE_TIMEOUT = 5_000
 
 const FEED_URL = 'https://oilprice.com/rss/main'
+
+// MyMemory free translation — no API key, 1000 req/day limit.
+// Falls back to the original English title on any error.
+async function translateOne(text: string): Promise<string> {
+  try {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|zh-CN`
+    const res = await fetch(url, { signal: AbortSignal.timeout(TRANSLATE_TIMEOUT) })
+    if (!res.ok) return text
+    const json = await res.json()
+    const translated: string = json?.responseData?.translatedText ?? ''
+    // MyMemory returns the original text (or error strings) when translation fails
+    if (!translated || translated === text || /MYMEMORY|QUERY|ERROR/i.test(translated)) return text
+    return translated
+  } catch {
+    return text
+  }
+}
+
+async function translateAll(titles: string[]): Promise<string[]> {
+  const results = await Promise.allSettled(titles.map(translateOne))
+  return results.map((r, i) => (r.status === 'fulfilled' ? r.value : titles[i]))
+}
 
 async function rawFetch(): Promise<{ status: number; body: string }> {
   const res = await fetch(FEED_URL, {
@@ -151,19 +174,26 @@ async function rawFetch(): Promise<{ status: number; body: string }> {
   return { status: res.status, body }
 }
 
-function toEvents(items: NewsItem[]): MacroEvent[] {
+async function toEvents(items: NewsItem[]): Promise<MacroEvent[]> {
   const today = new Date().toISOString().slice(0, 10)
-  return dedup(items)
+  const candidates = dedup(items)
     .filter((a) => a.title.length > 10)
     .slice(0, 12)
-    .map((a): MacroEvent => {
-      const title = a.title.length > 72 ? a.title.slice(0, 69) + '…' : a.title
-      const impact = inferImpact(a.title)
-      const assets = inferAssets(a.title)
+
+  // Translate all headlines in parallel; falls back to English on any error.
+  const translated = await translateAll(candidates.map((a) => a.title))
+
+  return candidates
+    .map((a, idx): MacroEvent => {
+      const rawTitle = a.title
+      const zhTitle = translated[idx] ?? rawTitle
+      const displayTitle = zhTitle.length > 72 ? zhTitle.slice(0, 69) + '…' : zhTitle
+      const impact = inferImpact(rawTitle)
+      const assets = inferAssets(rawTitle)
       return {
         date: a.date,
-        title,
-        description: zhNarrative(a.title, assets, impact),
+        title: displayTitle,
+        description: zhNarrative(rawTitle, assets, impact),
         impact,
         assets,
         type: 'past',
@@ -185,7 +215,7 @@ export async function newsProbe(): Promise<Record<string, unknown>> {
   try {
     const { status, body } = await rawFetch()
     const items = parseRss(body)
-    const events = toEvents(items)
+    const events = await toEvents(items)
     return {
       url: FEED_URL,
       httpStatus: status,
