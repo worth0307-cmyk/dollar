@@ -51,6 +51,8 @@ body {
 
 .animate-fade-up { animation: fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .live-dot        { animation: pulse-soft 2.5s ease-in-out infinite; }
+.scrollbar-none  { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
 
 .gradient-text {
   background: linear-gradient(90deg, #60a5fa 0%, #818cf8 40%, #38bdf8 80%, #60a5fa 100%);

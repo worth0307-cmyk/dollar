@@ -52,7 +52,7 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
           onClick={clickable ? () => setExpanded((e) => !e) : undefined}
         >
           {/* Title block — for news only shows date + badge; title moves to detail */}
-          <div className="w-44 shrink-0">
+          <div className="w-28 sm:w-44 shrink-0">
             <span className="text-[11px] font-mono text-gray-100 block">{fmtDate(event.date)}</span>
             {!isNews && <span className="text-sm font-medium text-gray-100">{event.title}</span>}
             <div className="mt-0.5 flex flex-wrap gap-1">
@@ -248,7 +248,8 @@ export default function MacroEvents({ past, upcoming, aiUsage }: Props) {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`text-sm px-3 py-1.5 rounded-md font-medium transition-colors ${
+            aria-label={t === 'upcoming' ? '即将发生' : '历史事件'}
+            className={`text-sm px-3 py-2 rounded-md font-medium transition-colors min-h-[36px] ${
               tab === t
                 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                 : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
@@ -261,8 +262,10 @@ export default function MacroEvents({ past, upcoming, aiUsage }: Props) {
           </button>
         ))}
 
-        {/* Filter chips — outcome/news only on 历史事件; asset chips on both tabs */}
-        <div className="flex items-center gap-1 ml-auto flex-wrap">
+        {/* Filter chips — outcome/news only on 历史事件; asset chips on both tabs.
+            overflow-x-auto + scrollbar-none lets chips scroll horizontally on
+            narrow phones instead of wrapping into multiple rows. */}
+        <div className="flex items-center gap-1 ml-auto overflow-x-auto scrollbar-none shrink min-w-0">
           {tab === 'past' &&
             FILTERS.map((f) => {
               const on = filters.has(f.key)

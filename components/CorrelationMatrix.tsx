@@ -40,7 +40,8 @@ export default function CorrelationMatrix({ keys, matrix, selectedKey, onSelectK
               <button
                 onClick={() => onSelectKey?.(k)}
                 title={ASSET_BY_KEY[k]?.name}
-                className="transition-transform hover:scale-125"
+                aria-label={ASSET_BY_KEY[k]?.name}
+                className="p-2 -m-2 transition-transform hover:scale-125"
                 style={{ opacity: isDimmed ? 0.35 : 1 }}
               >
                 <span
@@ -107,7 +108,8 @@ function Row({
     <>
       <button
         onClick={() => onSelectKey?.(rowKey)}
-        className="flex items-center gap-1.5 pr-1 transition-opacity hover:opacity-100"
+        aria-label={ASSET_BY_KEY[rowKey]?.name}
+        className="flex items-center gap-1.5 pr-1 py-1 transition-opacity hover:opacity-100"
         style={{ opacity: isRowDimmed ? 0.35 : 1 }}
       >
         <span

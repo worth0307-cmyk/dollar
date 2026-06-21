@@ -84,7 +84,7 @@ export default function PriceCard({
       {asset.price != null ? (
         <div className="mt-1">
           <span
-            className="text-2xl font-bold font-mono"
+            className="text-xl sm:text-2xl font-bold font-mono"
             style={{
               color: '#f1f5f9',
               textShadow: `0 0 12px ${color}30`,

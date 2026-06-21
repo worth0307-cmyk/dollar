@@ -139,9 +139,10 @@ export default function NotableMoves({
             }
             onClick={() => onSelectMove?.({ key: m.key, time: m.time })}
           >
-            {/* Date */}
-            <span className="font-mono text-sm text-slate-300 shrink-0">
-              {fmtDate(m.time)}
+            {/* Date — abbreviated on narrow screens to leave room for event title */}
+            <span className="font-mono text-[11px] sm:text-sm text-slate-300 shrink-0">
+              <span className="hidden sm:inline">{fmtDate(m.time)}</span>
+              <span className="sm:hidden">{fmtDate(m.time).slice(5)}</span>
             </span>
 
             {/* Asset dot + symbol */}

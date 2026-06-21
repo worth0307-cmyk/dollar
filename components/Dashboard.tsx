@@ -51,13 +51,13 @@ export default function Dashboard() {
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null)
   const [selectedMove, setSelectedMove] = useState<{ key: string; time: number } | null>(null)
 
-  const { data: market, isLoading: marketLoading } = useSWR<MarketAsset[]>(
+  const { data: market, isLoading: marketLoading, error: marketError } = useSWR<MarketAsset[]>(
     '/api/market',
     fetcher,
     { refreshInterval: 30_000, onSuccess: () => setLastUpdated(new Date()) }
   )
 
-  const { data: history, isLoading: historyLoading } = useSWR(
+  const { data: history, isLoading: historyLoading, error: historyError } = useSWR(
     `/api/history?range=${range}&anchor=${anchor}`,
     fetcher,
     { refreshInterval: 60_000 }
@@ -210,7 +210,8 @@ export default function Dashboard() {
                 <button
                   key={r.value}
                   onClick={() => setRange(r.value)}
-                  className={`px-2 sm:px-3 py-1 text-xs rounded-md font-medium transition-all ${
+                  aria-label={`${r.label} 时间区间`}
+                  className={`px-2 sm:px-3 py-1.5 text-xs rounded-md font-medium transition-all min-h-[32px] ${
                     range === r.value
                       ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 shadow-[0_0_8px_rgba(96,165,250,0.3)]'
                       : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/60'
@@ -257,7 +258,11 @@ export default function Dashboard() {
         <div className="rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
           <h2 className="text-sm font-semibold text-gray-100 mb-0.5">Correlation</h2>
           <p className="text-[10px] text-gray-500 mb-4">周期内资产联动关系</p>
-          {historyLoading ? (
+          {historyError ? (
+            <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">
+              数据加载失败，自动重试中…
+            </div>
+          ) : historyLoading ? (
             <div className="flex-1 flex items-center justify-center text-gray-600 text-sm live-dot">
               Computing…
             </div>
@@ -274,7 +279,7 @@ export default function Dashboard() {
 
       {/* ── Notable Moves + Macro Events (side by side, 2:3 split) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4 items-stretch">
-        <div className="lg:col-span-2 h-[420px] lg:h-[440px] rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
+        <div className="lg:col-span-2 h-[300px] sm:h-[380px] lg:h-[440px] rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
           <div className="flex items-baseline justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-100">Notable Moves</h2>
             <span className="text-[10px] text-gray-500">单日 &gt; 2σ 异动</span>
@@ -293,7 +298,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="lg:col-span-3 h-[520px] lg:h-[440px] rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
+        <div className="lg:col-span-3 h-[460px] sm:h-[500px] lg:h-[440px] rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
           <div className="flex items-baseline justify-between mb-1">
             <h2 className="text-sm font-semibold text-gray-100">Macro Events</h2>
             <span className="text-[10px] text-gray-500">重大宏观事件与日程</span>

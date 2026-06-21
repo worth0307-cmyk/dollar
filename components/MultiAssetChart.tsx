@@ -360,7 +360,7 @@ export default function MultiAssetChart({
       </div>
 
       {/* Interactive legend */}
-      <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+      <div className="mt-4 flex flex-wrap gap-x-2 sm:gap-x-5 gap-y-2">
         {ASSETS.map((a) => {
           const isHidden = hidden.has(a.key)
           const isSelected = selectedKey === a.key
