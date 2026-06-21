@@ -1,45 +1,39 @@
-// GDELT Project — free global news event database, no API key required.
-// Doc 2.0 API: https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/
-// Returns recent English news articles matching geopolitical/commodity keywords.
-// We infer affected assets from article titles and classify impact level.
+// Google News RSS — free, stable, keyword-searchable, and (unlike GDELT) not
+// rate-limited per-IP, so it works reliably from Cloudflare's shared egress.
+// We search energy/geopolitical keywords, infer affected assets from the
+// headline, and classify impact level.
 
 import type { MacroEvent } from './events'
 
-interface GdeltArticle {
-  url: string
+interface NewsItem {
   title: string
-  seendate: string // "YYYYMMDDTHHMMSSZ"
-  domain: string
-  language?: string
-}
-
-interface GdeltResponse {
-  articles?: GdeltArticle[]
+  url: string
+  date: string // YYYY-MM-DD
+  source: string
 }
 
 // Title keywords → affected assets
 const ASSET_SIGNALS: Array<{ re: RegExp; assets: string[] }> = [
   {
-    re: /oil|crude|brent|opec|petroleum|refin|hormuz|strait|pipeline|lng|tanker|saudi|aramco|energy supply/i,
+    re: /oil|crude|brent|opec|petroleum|refin|hormuz|strait|pipeline|lng|tanker|saudi|aramco|gas|energy/i,
     assets: ['brent'],
   },
   { re: /gold|safe.?haven|bullion|precious metal/i, assets: ['gold'] },
-  { re: /dollar|usd|sanction|treasury|forex/i, assets: ['dxy'] },
-  { re: /stock|equit|nasdaq|dow jones|s&p 500|market (crash|plunge|surge)/i, assets: ['sp500'] },
+  { re: /dollar|usd|sanction|treasury|forex|fed\b/i, assets: ['dxy'] },
+  { re: /stock|equit|nasdaq|dow jones|s&p|wall street|market (crash|plunge|surge)/i, assets: ['sp500'] },
   { re: /bitcoin|crypto|btc|digital asset/i, assets: ['btc'] },
 ]
 
 // Words that mark a HIGH-impact event
 const HIGH_RE =
-  /war|attack|bomb|strike|invasion|close[sd]?|closure|shutdown|seize[sd]?|sanction|crisis|emergency|hostage|blockade|missile/i
+  /war|attack|bomb|strike|invasion|close[sd]?|closure|shutdown|seize[sd]?|sanction|crisis|emergency|hostage|blockade|missile|surge|plunge|crash/i
 
 function inferAssets(title: string): string[] {
   const found = new Set<string>()
   for (const { re, assets } of ASSET_SIGNALS) {
     if (re.test(title)) assets.forEach((a) => found.add(a))
   }
-  // Generic conflict → oil + gold
-  if (found.size === 0 && /conflict|military|troops|forces|war|tension/i.test(title)) {
+  if (found.size === 0 && /conflict|military|troops|forces|war|tension|israel|iran|russia|ukraine/i.test(title)) {
     found.add('brent')
     found.add('gold')
   }
@@ -50,20 +44,57 @@ function inferImpact(title: string): 'high' | 'medium' {
   return HIGH_RE.test(title) ? 'high' : 'medium'
 }
 
-// "20260621T143500Z" → "2026-06-21"
-function parseGdeltDate(s: string): string {
-  const m = s.match(/^(\d{4})(\d{2})(\d{2})/)
-  if (!m) return new Date().toISOString().slice(0, 10)
-  return `${m[1]}-${m[2]}-${m[3]}`
+function decodeEntities(s: string): string {
+  return s
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .trim()
 }
 
-// Naïve deduplication: extract the 3 most significant words from each title;
-// if another article has the same fingerprint (same day coverage), skip it.
-function dedup(articles: GdeltArticle[]): GdeltArticle[] {
-  const STOPWORDS = /^(the|this|that|with|from|have|will|been|were|they|after|amid|over|into|says|said)$/
+function pick(block: string, tag: string): string {
+  const m = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i'))
+  return m ? decodeEntities(m[1]) : ''
+}
+
+// "Wed, 18 Jun 2026 14:30:00 GMT" → "2026-06-21"
+function toIsoDate(pubDate: string): string {
+  const t = Date.parse(pubDate)
+  return Number.isNaN(t)
+    ? new Date().toISOString().slice(0, 10)
+    : new Date(t).toISOString().slice(0, 10)
+}
+
+function parseRss(xml: string): NewsItem[] {
+  const items = xml.match(/<item[\s\S]*?<\/item>/gi) ?? []
+  return items.map((block) => {
+    const source = pick(block, 'source')
+    let title = pick(block, 'title')
+    // Google News appends " - Source Name" to titles — strip it.
+    if (source && title.endsWith(` - ${source}`)) {
+      title = title.slice(0, -(source.length + 3))
+    } else {
+      title = title.replace(/\s+-\s+[^-]+$/, '')
+    }
+    return {
+      title: title.trim(),
+      url: pick(block, 'link'),
+      date: toIsoDate(pick(block, 'pubDate')),
+      source: source || 'news',
+    }
+  })
+}
+
+// Drop near-duplicate stories by a 3-keyword fingerprint of the title.
+function dedup(items: NewsItem[]): NewsItem[] {
+  const STOPWORDS = /^(the|this|that|with|from|have|will|been|were|they|after|amid|over|into|says|said|about|could|would|amid)$/
   const seen = new Set<string>()
-  return articles.filter((a) => {
-    const words = a.title
+  return items.filter((a) => {
+    const fp = a.title
       .toLowerCase()
       .replace(/[^a-z\s]/g, ' ')
       .split(/\s+/)
@@ -71,77 +102,46 @@ function dedup(articles: GdeltArticle[]): GdeltArticle[] {
       .slice(0, 3)
       .sort()
       .join('|')
-    if (seen.has(words)) return false
-    seen.add(words)
+    if (!fp || seen.has(fp)) return false
+    seen.add(fp)
     return true
   })
 }
 
-// Tight keyword set. GDELT's DOC API gets slow with long OR chains, wide
-// timespans, and sorting — all of which we trim aggressively to stay well
-// under the request timeout.
-const GDELT_QUERY = '"crude oil" OR OPEC OR "Strait of Hormuz" OR "oil price"'
+const NEWS_TIMEOUT = 10_000
 
-const GDELT_TIMEOUT = 12_000
+// Energy + geopolitics search. `when:3d` restricts to the last 3 days.
+const QUERY = '("crude oil" OR OPEC OR "Strait of Hormuz" OR "oil price" OR "oil supply" OR sanctions) when:3d'
 
 function buildUrl(): string {
-  const qs = new URLSearchParams({
-    query: GDELT_QUERY,
-    mode: 'artlist',
-    maxrecords: '25',
-    timespan: '72h',  // smaller window = far less to scan = faster response
-    format: 'json',
-  })
-  return `https://api.gdeltproject.org/api/v2/doc/doc?${qs}`
+  const qs = new URLSearchParams({ q: QUERY, hl: 'en-US', gl: 'US', ceid: 'US:en' })
+  return `https://news.google.com/rss/search?${qs}`
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
-// GDELT rate-limits to 1 request / 5s per IP (and Cloudflare's shared egress IP
-// makes 429s common). Since /api/news caches success for 4h, we can afford to
-// wait out the limit: retry on 429 a few times, spaced just over 5s apart.
-// Also reads the body as text and lets the caller parse defensively, because
-// GDELT returns HTTP 200 with plain-text errors for some queries.
-async function rawFetch(attempt = 0): Promise<{ status: number; body: string }> {
+async function rawFetch(): Promise<{ status: number; body: string }> {
   const res = await fetch(buildUrl(), {
     headers: {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      Accept: 'application/rss+xml, application/xml, text/xml, */*',
     },
-    signal: AbortSignal.timeout(GDELT_TIMEOUT),
+    signal: AbortSignal.timeout(NEWS_TIMEOUT),
   })
   const body = await res.text()
-
-  // Retry on 429 (rate limit), up to 3 attempts total.
-  if (res.status === 429 && attempt < 2) {
-    await sleep(5_500)
-    return rawFetch(attempt + 1)
-  }
-
   return { status: res.status, body }
 }
 
-function parseArticles(body: string): GdeltArticle[] {
-  const trimmed = body.trim()
-  if (!trimmed.startsWith('{')) {
-    // Not JSON — GDELT returned an error message or empty response
-    throw new Error(`non-JSON response: ${trimmed.slice(0, 120)}`)
-  }
-  const data: GdeltResponse = JSON.parse(trimmed)
-  return data.articles ?? []
-}
-
-function toEvents(articles: GdeltArticle[]): MacroEvent[] {
+function toEvents(items: NewsItem[]): MacroEvent[] {
   const today = new Date().toISOString().slice(0, 10)
-  return dedup(articles)
-    .filter((a) => a.language == null || a.language === 'English')
+  return dedup(items)
+    .filter((a) => a.title.length > 10)
     .slice(0, 12)
     .map((a): MacroEvent => {
       const title = a.title.length > 72 ? a.title.slice(0, 69) + '…' : a.title
       return {
-        date: parseGdeltDate(a.seendate),
+        date: a.date,
         title,
-        description: `${a.domain} 报道`,
+        description: `${a.source} 报道`,
         impact: inferImpact(a.title),
         assets: inferAssets(a.title),
         type: 'past',
@@ -154,31 +154,23 @@ function toEvents(articles: GdeltArticle[]): MacroEvent[] {
 
 export async function fetchGeopoliticalEvents(): Promise<MacroEvent[]> {
   const { status, body } = await rawFetch()
-  if (status !== 200) throw new Error(`GDELT HTTP ${status}: ${body.slice(0, 120)}`)
-  return toEvents(parseArticles(body))
+  if (status !== 200) throw new Error(`News RSS HTTP ${status}: ${body.slice(0, 120)}`)
+  return toEvents(parseRss(body))
 }
 
 // Diagnostics for the ?debug=1 endpoint — never throws.
-export async function gdeltProbe(): Promise<Record<string, unknown>> {
+export async function newsProbe(): Promise<Record<string, unknown>> {
   try {
     const { status, body } = await rawFetch()
-    let articleCount = -1
-    let eventCount = -1
-    let parseError: string | null = null
-    try {
-      const articles = parseArticles(body)
-      articleCount = articles.length
-      eventCount = toEvents(articles).length
-    } catch (e) {
-      parseError = String(e)
-    }
+    const items = parseRss(body)
+    const events = toEvents(items)
     return {
       url: buildUrl(),
       httpStatus: status,
-      bodyStart: body.slice(0, 200),
-      articleCount,
-      eventCount,
-      parseError,
+      bodyStart: body.slice(0, 160),
+      itemCount: items.length,
+      eventCount: events.length,
+      sample: events.slice(0, 3).map((e) => ({ date: e.date, title: e.title, assets: e.assets })),
     }
   } catch (e) {
     return { url: buildUrl(), fetchError: String(e) }

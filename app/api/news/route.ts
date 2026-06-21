@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { fetchGeopoliticalEvents, gdeltProbe } from '@/lib/newsfeed'
+import { fetchGeopoliticalEvents, newsProbe } from '@/lib/newsfeed'
 import { cacheGet, cacheSet } from '@/lib/cache'
 import type { MacroEvent } from '@/lib/events'
 
@@ -14,7 +14,7 @@ const RETRY_TTL = 10 * 60_000     // 10min on empty/failure, so it retries soon
 // history list.
 export async function GET(req: Request) {
   if (new URL(req.url).searchParams.get('debug') === '1') {
-    return NextResponse.json(await gdeltProbe())
+    return NextResponse.json(await newsProbe())
   }
 
   const cached = cacheGet<MacroEvent[]>(CACHE_KEY)
