@@ -12,6 +12,7 @@ export interface MacroEvent {
 }
 
 // ─── Past Events ──────────────────────────────────────────────────────────────
+// To annotate an event's outcome, add:  outcome: 'beat'  or  outcome: 'miss'
 export const PAST_EVENTS: MacroEvent[] = [
   {
     date: '2024-09-18',
@@ -21,6 +22,9 @@ export const PAST_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'gold', 'sp500', 'btc'],
     type: 'past',
     url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+    beat: '降幅超预期（50bp vs 市场预期25bp）→ DXY↓，黄金创新高，美股+BTC走强',
+    miss: '降幅不及预期或按兵不动 → DXY↑，金价承压，市场失望',
+    outcome: 'beat',
   },
   {
     date: '2024-10-07',
@@ -57,6 +61,9 @@ export const PAST_EVENTS: MacroEvent[] = [
     assets: ['brent', 'dxy'],
     type: 'past',
     url: 'https://www.opec.org/opec_web/en/press_room/press_releases.htm',
+    beat: '维持/深化减产 → 布伦特反弹，能源股走强',
+    miss: '延产决定未能提振市场，过剩担忧压制油价 → 布伦特承压，市场反应负面',
+    outcome: 'miss',
   },
   {
     date: '2024-12-18',
@@ -66,6 +73,9 @@ export const PAST_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'gold', 'sp500', 'btc'],
     type: 'past',
     url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+    beat: '鸽派点阵图/多次降息预期 → DXY↓，黄金+美股走强',
+    miss: '点阵图鹰派超预期，2025降息次数大幅压缩 → DXY↑创新高，美股+金价大跌',
+    outcome: 'miss',
   },
   {
     date: '2025-01-20',
@@ -102,6 +112,9 @@ export const PAST_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'brent', 'gold', 'sp500', 'btc'],
     type: 'past',
     url: 'https://ustr.gov/',
+    beat: '税率低于预期或排除关键品类 → 市场松一口气，美股+风险资产反弹',
+    miss: '税率超预期，覆盖范围极广 → 衰退恐慌，美股单日跌幅创2020年来最大，油价暴跌',
+    outcome: 'miss',
   },
   {
     date: '2025-04-09',
@@ -111,6 +124,9 @@ export const PAST_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'brent', 'gold', 'sp500', 'btc'],
     type: 'past',
     url: 'https://ustr.gov/',
+    beat: '暂停关税/谈判积极信号 → 美股单日涨超9%，BTC+黄金+布伦特齐涨，恐慌情绪骤降',
+    miss: '关税全面升级/谈判破裂 → 全球风险资产继续下行',
+    outcome: 'beat',
   },
   {
     date: '2025-05-07',
@@ -129,6 +145,9 @@ export const PAST_EVENTS: MacroEvent[] = [
     assets: ['dxy', 'brent', 'gold', 'sp500', 'btc'],
     type: 'past',
     url: 'https://ustr.gov/',
+    beat: '协议幅度超预期，关税大幅削减 → 全球风险资产强势反弹，BTC+美股+布伦特齐升',
+    miss: '谈判无实质进展 → 关税战持续，市场承压',
+    outcome: 'beat',
   },
   {
     date: '2025-06-18',

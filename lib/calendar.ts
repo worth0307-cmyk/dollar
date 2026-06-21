@@ -3,8 +3,8 @@ import type { MacroEvent } from './events'
 // ForexFactory weekly economic calendar — free, no API key required.
 // Feed: https://nfs.faireconomy.media/ff_calendar_thisweek.json
 // Each entry: { title, country (currency code e.g. "USD"), date (ISO w/ tz),
-//   impact ("High"|"Medium"|"Low"|"Holiday"), forecast, previous, actual }
-// Values are strings with units, e.g. "3.2%", "256K", "<5.50%", or "".
+//   impact ("High"|"Medium"|"Low"|"Holiday"), forecast, previous }
+// NOTE: the feed does NOT include an `actual` field — forecast/previous only.
 interface FFEvent {
   title: string
   country?: string
@@ -13,7 +13,6 @@ interface FFEvent {
   impact: string
   forecast?: string
   previous?: string
-  actual?: string
 }
 
 type EventTemplate = {
@@ -23,9 +22,6 @@ type EventTemplate = {
   beat: string
   miss: string
   url: string
-  // 'positive' = actual > forecast means beat; 'negative' = actual < forecast means beat
-  // undefined = no numeric comparison available (e.g. a speech)
-  beatDirection?: 'positive' | 'negative'
 }
 
 const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
@@ -38,7 +34,6 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: '鸽派惊喜/降息落地 → DXY↓，黄金+美股+BTC齐升，风险偏好回暖',
       miss: '鹰派/维持不变 → DXY↑，金价承压，美股震荡，降息预期延后',
       url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
-      beatDirection: 'negative', // lower rate than expected = dovish = beat
     },
   },
   {
@@ -50,7 +45,6 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: 'CPI高于预期（通胀顽固）→ DXY↑，金价承压，美股回落，降息预期推迟',
       miss: 'CPI低于预期（通胀降温）→ DXY↓，黄金+美股走强，降息预期升温',
       url: 'https://www.bls.gov/cpi/',
-      beatDirection: 'positive',
     },
   },
   {
@@ -62,7 +56,6 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: 'PCE高于预期 → DXY↑，黄金承压，美股回落，鹰派预期升温',
       miss: 'PCE低于预期 → DXY↓，黄金+美股走强，降息概率上升',
       url: 'https://www.bea.gov/data/personal-consumption-expenditures-price-index',
-      beatDirection: 'positive',
     },
   },
   {
@@ -74,7 +67,6 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: '就业超预期（劳动市场强劲）→ DXY↑，降息预期降温，美股短期震荡',
       miss: '就业不及预期（劳动市场走弱）→ DXY↓，降息预期升温，黄金避险走强',
       url: 'https://www.bls.gov/news.release/empsit.htm',
-      beatDirection: 'positive',
     },
   },
   {
@@ -86,7 +78,6 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: 'GDP超预期（经济韧性强）→ DXY↑，美股+布伦特走强，衰退担忧缓解',
       miss: 'GDP不及预期（经济走弱）→ 布伦特+美股承压，黄金避险走强',
       url: 'https://www.bea.gov/data/gdp/gross-domestic-product',
-      beatDirection: 'positive',
     },
   },
   {
@@ -98,7 +89,6 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: '明确降息信号 → DXY大跌，黄金+美股+BTC飙升',
       miss: '措辞审慎，不给降息承诺 → DXY↑，黄金震荡，美股回调',
       url: 'https://www.federalreserve.gov/newsevents/speeches.htm',
-      // no beatDirection: speech has no numeric actual vs forecast
     },
   },
   {
@@ -110,7 +100,6 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: '消费超预期（内需强劲）→ 经济韧性确认，DXY↑，美股短期走强',
       miss: '消费不及预期（内需走弱）→ 经济走弱信号，DXY↓，美股承压',
       url: 'https://www.census.gov/retail/',
-      beatDirection: 'positive',
     },
   },
   {
@@ -122,7 +111,6 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: '失业率低于预期（就业强劲）→ DXY↑，降息预期降温，美股短期震荡',
       miss: '失业率高于预期（就业走弱）→ DXY↓，降息预期升温，避险情绪升',
       url: 'https://www.bls.gov/news.release/empsit.htm',
-      beatDirection: 'negative', // lower unemployment/claims = better = beat
     },
   },
   {
@@ -134,7 +122,6 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: 'PMI超预期（经济扩张）→ DXY↑，美股+布伦特走强，需求预期改善',
       miss: 'PMI不及预期（收缩加剧）→ 衰退担忧升温，布伦特承压，黄金避险',
       url: 'https://www.ismworld.org/',
-      beatDirection: 'positive',
     },
   },
   {
@@ -146,7 +133,6 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
       beat: 'PPI超预期 → 通胀上游压力上升，DXY↑，美股短期承压',
       miss: 'PPI低于预期 → 通胀压力减弱，DXY↓，市场降息预期温和升温',
       url: 'https://www.bls.gov/ppi/',
-      beatDirection: 'positive',
     },
   },
 ]
@@ -166,30 +152,9 @@ function mapImpact(raw: string): 'high' | 'medium' | 'low' {
   return 'low'
 }
 
-// Parse the leading numeric value out of a ForexFactory string like
-// "3.2%", "256K", "<5.50%", "-0.1%". Returns null when empty/non-numeric.
-function parseNum(s: string | null | undefined): number | null {
-  if (s == null) return null
-  const m = String(s).match(/-?\d+(\.\d+)?/)
-  return m ? parseFloat(m[0]) : null
-}
-
-function buildDescription(
-  base: string,
-  actualRaw: string | undefined,
-  forecastRaw: string | undefined,
-  prevRaw: string | undefined,
-  showActual: boolean
-): string {
+function buildDescription(base: string, forecastRaw: string | undefined, prevRaw: string | undefined): string {
   let desc = base
-  if (showActual && actualRaw) {
-    desc += ` 实际值：${actualRaw}`
-    const extras: string[] = []
-    if (forecastRaw) extras.push(`市场预期 ${forecastRaw}`)
-    if (prevRaw) extras.push(`前值 ${prevRaw}`)
-    if (extras.length) desc += `（${extras.join('，')}）`
-    desc += '。'
-  } else if (forecastRaw) {
+  if (forecastRaw) {
     desc += ` 市场预期 ${forecastRaw}`
     if (prevRaw) desc += `，前值 ${prevRaw}`
     desc += '。'
@@ -197,12 +162,9 @@ function buildDescription(
   return desc
 }
 
-// ForexFactory only publishes a single rolling weekly file. nextweek/lastweek
-// slugs do not exist and return 404.
 async function fetchWeek(): Promise<FFEvent[]> {
   const res = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
     headers: {
-      // ForexFactory blocks non-browser user agents.
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       Accept: 'application/json,text/plain,*/*',
@@ -220,10 +182,9 @@ export interface CalendarDebug {
   matched: Array<Record<string, unknown>>
 }
 
-export async function fetchEconomicCalendar(debug?: CalendarDebug): Promise<{
-  past: MacroEvent[]
-  upcoming: MacroEvent[]
-}> {
+// Fetches upcoming (future) USD High/Medium events from ForexFactory this week.
+// Past events are handled by static data in lib/events.ts.
+export async function fetchUpcomingFromFF(debug?: CalendarDebug): Promise<MacroEvent[]> {
   let raw: FFEvent[]
   try {
     raw = await fetchWeek()
@@ -234,8 +195,6 @@ export async function fetchEconomicCalendar(debug?: CalendarDebug): Promise<{
   }
 
   const now = Date.now()
-
-  const past: MacroEvent[] = []
   const upcoming: MacroEvent[] = []
   const seen = new Set<string>()
 
@@ -244,61 +203,36 @@ export async function fetchEconomicCalendar(debug?: CalendarDebug): Promise<{
     if (cur !== 'USD') continue
 
     const impact = mapImpact(e.impact)
-    if (impact === 'low') continue // skip Low + Holiday
+    if (impact === 'low') continue
 
     const template = findTemplate(e.title)
     if (!template) continue
+
+    const eventTime = new Date(e.date).getTime()
+    if (eventTime <= now) continue  // skip past events; static data handles those
 
     const date = e.date.slice(0, 10)
     const key = `${date}::${template.title}`
     if (seen.has(key)) continue
     seen.add(key)
 
-    const eventTime = new Date(e.date).getTime()
-    const actualNum = parseNum(e.actual)
-    // An event is "past" once it has fired; presence of an actual value confirms it.
-    const isPast = actualNum != null || eventTime <= now
-
-    // Auto-detect beat/miss for past events with both actual and forecast.
-    let outcome: 'beat' | 'miss' | undefined
-    const forecastNum = parseNum(e.forecast)
-    if (isPast && actualNum != null && forecastNum != null && template.beatDirection) {
-      const diff = actualNum - forecastNum
-      if (Math.abs(diff) >= 0.01) {
-        const beatWhen = template.beatDirection === 'positive' ? diff > 0 : diff < 0
-        outcome = beatWhen ? 'beat' : 'miss'
-      }
-    }
-
     if (debug) {
-      debug.matched.push({
-        date,
-        mapped: template.title,
-        outcome: outcome ?? null,
-        rawKeys: Object.keys(e as object),
-        raw: e,
-      })
+      debug.matched.push({ date, mapped: template.title, forecast: e.forecast ?? null })
     }
 
-    const event: MacroEvent = {
+    upcoming.push({
       date,
       title: template.title,
-      description: buildDescription(template.description, e.actual, e.forecast, e.previous, isPast),
+      description: buildDescription(template.description, e.forecast, e.previous),
       impact,
       assets: template.assets,
-      type: isPast ? 'past' : 'upcoming',
+      type: 'upcoming',
       url: template.url,
       beat: template.beat,
       miss: template.miss,
-      outcome,
-    }
-
-    if (isPast) past.push(event)
-    else upcoming.push(event)
+    })
   }
 
-  past.sort((a, b) => b.date.localeCompare(a.date))
   upcoming.sort((a, b) => a.date.localeCompare(b.date))
-
-  return { past: past.slice(0, 20), upcoming: upcoming.slice(0, 10) }
+  return upcoming.slice(0, 10)
 }
