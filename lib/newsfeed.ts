@@ -148,43 +148,74 @@ const FEED_URL = 'https://oilprice.com/rss/main'
 //   CF_ACCOUNT_ID  — your Cloudflare account id
 //   CF_AI_TOKEN    — an API token with the "Workers AI" permission
 // Fallback: MyMemory (best-effort, free, no key) → original English title.
-const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID
-const CF_AI_TOKEN = process.env.CF_AI_TOKEN
 const CF_AI_MODEL = '@cf/meta/m2m100-1.2b'
 
-// MyMemory raises its anonymous per-IP quota when a contact email is supplied.
-const TRANSLATE_EMAIL = process.env.MYMEMORY_EMAIL ?? 'worth0307@gmail.com'
+// Read creds lazily and trimmed on every call. Lazy: under @opennextjs/cloudflare
+// env bindings are only reliably present in request scope, not at module-eval
+// time — reading at top level could capture `undefined` on a cold isolate.
+// Trimmed: a stray newline/space pasted into the dashboard would otherwise
+// corrupt the Authorization header and silently 400/401 the request.
+function cfCreds(): { id: string; token: string } {
+  return {
+    id: (process.env.CF_ACCOUNT_ID ?? '').trim(),
+    token: (process.env.CF_AI_TOKEN ?? '').trim(),
+  }
+}
 
-async function translateViaWorkersAI(text: string): Promise<string> {
-  if (!CF_ACCOUNT_ID || !CF_AI_TOKEN) return text
+// MyMemory raises its anonymous per-IP quota when a contact email is supplied.
+const TRANSLATE_EMAIL = (process.env.MYMEMORY_EMAIL ?? 'worth0307@gmail.com').trim()
+
+// Detailed Workers AI call — returns the translation plus diagnostics (HTTP
+// status, error snippet, whether it was budget-blocked) so the ?debug endpoint
+// can pinpoint why a title stayed English. `zh === text` means "no translation".
+interface WaiResult {
+  zh: string
+  configured: boolean
+  blocked?: boolean
+  status?: number
+  error?: string
+}
+
+async function translateViaWorkersAIDetailed(text: string): Promise<WaiResult> {
+  const { id, token } = cfCreds()
+  if (!id || !token) return { zh: text, configured: false, error: 'CF_ACCOUNT_ID / CF_AI_TOKEN not set' }
   // Daily budget guard: once 70% of the free neuron allowance is reached, stop
   // calling Workers AI and fall back to English — never spill into paid usage.
   if (!canSpend()) {
     recordBlocked()
-    return text
+    return { zh: text, configured: true, blocked: true, error: 'daily budget cap reached' }
   }
   try {
     recordSpend() // count the attempt up-front (conservative)
     const res = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/${CF_AI_MODEL}`,
+      `https://api.cloudflare.com/client/v4/accounts/${id}/ai/run/${CF_AI_MODEL}`,
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${CF_AI_TOKEN}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ text, source_lang: 'english', target_lang: 'chinese' }),
         signal: AbortSignal.timeout(TRANSLATE_TIMEOUT),
       }
     )
-    if (!res.ok) return text
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      return { zh: text, configured: true, status: res.status, error: body.slice(0, 200) }
+    }
     const json: any = await res.json()
     const translated: string = json?.result?.translated_text ?? ''
-    if (!translated || translated.trim() === text.trim()) return text
-    return translated
-  } catch {
-    return text
+    if (!translated || translated.trim() === text.trim()) {
+      return { zh: text, configured: true, status: res.status, error: 'empty or identical result' }
+    }
+    return { zh: translated, configured: true, status: res.status }
+  } catch (e) {
+    return { zh: text, configured: true, error: String(e) }
   }
+}
+
+async function translateViaWorkersAI(text: string): Promise<string> {
+  return (await translateViaWorkersAIDetailed(text)).zh
 }
 
 async function translateViaMyMemory(text: string): Promise<string> {
@@ -230,16 +261,23 @@ async function translateOne(text: string): Promise<string> {
 }
 
 // Exposed for the ?debug=1 endpoint so translation can be verified live,
-// bypassing the news cache. Shows which provider produced the result.
+// bypassing the news cache. Surfaces the Workers AI HTTP status / error so a
+// failing title can be diagnosed (bad token, wrong account id, model, quota…).
 export async function translateProbe(sample: string): Promise<Record<string, unknown>> {
-  const cfConfigured = !!(CF_ACCOUNT_ID && CF_AI_TOKEN)
-  const viaCf = await translateViaWorkersAI(sample)
+  const { id, token } = cfCreds()
+  const wai = await translateViaWorkersAIDetailed(sample)
+  const viaCf = wai.zh
   const viaMyMemory = viaCf !== sample ? '(skipped — Workers AI succeeded)' : await translateViaMyMemory(sample)
   const result = viaCf !== sample ? viaCf : viaMyMemory
   return {
-    cfConfigured,
+    cfConfigured: wai.configured,
+    cfAccountIdLen: id.length, // length only — never expose the value
+    cfTokenLen: token.length,
     sample,
-    workersAI: viaCf !== sample ? viaCf : '(no result / not configured)',
+    workersAI: viaCf !== sample ? viaCf : '(no result)',
+    workersAIStatus: wai.status ?? null,
+    workersAIError: wai.error ?? null,
+    workersAIBlocked: wai.blocked ?? false,
     myMemory: viaMyMemory,
     provider: viaCf !== sample ? 'workers-ai' : result !== sample ? 'mymemory' : 'none (english fallback)',
     result,
