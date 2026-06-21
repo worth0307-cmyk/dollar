@@ -273,14 +273,10 @@ export async function fetchEconomicCalendar(debug?: CalendarDebug): Promise<{
     if (debug) {
       debug.matched.push({
         date,
-        rawTitle: e.title,
         mapped: template.title,
-        impact,
-        isPast,
-        actual: e.actual ?? null,
-        forecast: e.forecast ?? null,
-        previous: e.previous ?? null,
         outcome: outcome ?? null,
+        rawKeys: Object.keys(e as object),
+        raw: e,
       })
     }
 
