@@ -1,10 +1,12 @@
 import type { MacroEvent } from './events'
+import { buildReleaseFromFeed } from './releases'
 
 // ForexFactory weekly economic calendar — free, no API key required.
 // Feed: https://nfs.faireconomy.media/ff_calendar_thisweek.json
 // Each entry: { title, country (currency code e.g. "USD"), date (ISO w/ tz),
-//   impact ("High"|"Medium"|"Low"|"Holiday"), forecast, previous }
-// NOTE: the feed does NOT include an `actual` field — forecast/previous only.
+//   impact ("High"|"Medium"|"Low"|"Holiday"), forecast, previous, actual? }
+// The `actual` field is populated once a data point has been released; we use it
+// to auto-detect beat/miss for past events. It is absent for future events.
 interface FFEvent {
   title: string
   country?: string
@@ -13,6 +15,7 @@ interface FFEvent {
   impact: string
   forecast?: string
   previous?: string
+  actual?: string
 }
 
 type EventTemplate = {
@@ -182,9 +185,14 @@ export interface CalendarDebug {
   matched: Array<Record<string, unknown>>
 }
 
-// Fetches upcoming (future) USD High/Medium events from ForexFactory this week + next.
-// Past events are handled by static data in lib/events.ts.
-export async function fetchUpcomingFromFF(debug?: CalendarDebug): Promise<MacroEvent[]> {
+export interface CalendarResult {
+  upcoming: MacroEvent[] // future USD High/Medium events
+  releases: MacroEvent[] // already-released data with auto-detected beat/miss
+}
+
+// Fetches both weekly feeds once and returns the raw rows. Throws only if both
+// feeds fail (so a single transient failure still yields partial data).
+async function fetchFFRaw(debug?: CalendarDebug): Promise<FFEvent[]> {
   const [thisResult, nextResult] = await Promise.allSettled([
     fetchWeek('thisweek'),
     fetchWeek('nextweek'),
@@ -204,13 +212,23 @@ export async function fetchUpcomingFromFF(debug?: CalendarDebug): Promise<MacroE
     if (debug) debug.feeds['nextweek'] = String(nextResult.reason)
   }
 
-  if (raw.length === 0) {
-    throw new Error(`ForexFactory unavailable`)
-  }
+  if (raw.length === 0) throw new Error('ForexFactory unavailable')
+  return raw
+}
 
+// Single pass over ForexFactory this-week + next-week:
+//   • future USD High/Medium events  → upcoming agenda
+//   • past events that carry an `actual` value → auto beat/miss release events
+// Past events without an actual are ignored (static data / manual RELEASES cover
+// the deeper history).
+export async function fetchCalendarFromFF(debug?: CalendarDebug): Promise<CalendarResult> {
+  const raw = await fetchFFRaw(debug)
   const now = Date.now()
+
   const upcoming: MacroEvent[] = []
-  const seen = new Set<string>()
+  const releases: MacroEvent[] = []
+  const seenUp = new Set<string>()
+  const seenRel = new Set<string>()
 
   for (const e of raw) {
     const cur = e.country ?? e.currency
@@ -219,34 +237,57 @@ export async function fetchUpcomingFromFF(debug?: CalendarDebug): Promise<MacroE
     const impact = mapImpact(e.impact)
     if (impact === 'low') continue
 
-    const template = findTemplate(e.title)
-    if (!template) continue
-
-    const eventTime = new Date(e.date).getTime()
-    if (eventTime <= now) continue  // skip past events; static data handles those
-
     const date = e.date.slice(0, 10)
-    const key = `${date}::${template.title}`
-    if (seen.has(key)) continue
-    seen.add(key)
+    const eventTime = new Date(e.date).getTime()
 
-    if (debug) {
-      debug.matched.push({ date, mapped: template.title, forecast: e.forecast ?? null })
+    if (eventTime > now) {
+      // Future → upcoming agenda entry (templated narrative).
+      const template = findTemplate(e.title)
+      if (!template) continue
+      const key = `${date}::${template.title}`
+      if (seenUp.has(key)) continue
+      seenUp.add(key)
+      if (debug) debug.matched.push({ kind: 'upcoming', date, mapped: template.title, forecast: e.forecast ?? null })
+      upcoming.push({
+        date,
+        title: template.title,
+        description: buildDescription(template.description, e.forecast, e.previous),
+        impact,
+        assets: template.assets,
+        type: 'upcoming',
+        url: template.url,
+        beat: template.beat,
+        miss: template.miss,
+      })
+    } else {
+      // Past → only kept if the feed exposes an actual value (auto beat/miss).
+      const rel = buildReleaseFromFeed({
+        title: e.title,
+        date,
+        actual: e.actual,
+        forecast: e.forecast,
+        previous: e.previous,
+        impact,
+      })
+      if (!rel) continue
+      const key = `${date}::${rel.title}`
+      if (seenRel.has(key)) continue
+      seenRel.add(key)
+      if (debug) {
+        debug.matched.push({
+          kind: 'release',
+          date,
+          mapped: rel.title,
+          actual: e.actual ?? null,
+          forecast: e.forecast ?? null,
+          outcome: rel.outcome ?? null,
+        })
+      }
+      releases.push(rel)
     }
-
-    upcoming.push({
-      date,
-      title: template.title,
-      description: buildDescription(template.description, e.forecast, e.previous),
-      impact,
-      assets: template.assets,
-      type: 'upcoming',
-      url: template.url,
-      beat: template.beat,
-      miss: template.miss,
-    })
   }
 
   upcoming.sort((a, b) => a.date.localeCompare(b.date))
-  return upcoming.slice(0, 10)
+  releases.sort((a, b) => b.date.localeCompare(a.date))
+  return { upcoming: upcoming.slice(0, 10), releases: releases.slice(0, 15) }
 }

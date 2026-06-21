@@ -159,9 +159,44 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
   )
 }
 
+// Today's Workers AI translation-quota usage, surfaced from /api/news.
+export interface AiUsage {
+  pctOfFree: number
+  pctOfBudget: number
+  safetyFraction: number
+  capReached: boolean
+  neuronsUsed: number
+  dailyFreeNeurons: number
+}
+
+// Breathing status dot for the news-translation quota — same LIVE-dot style as
+// the page header, no label. Green well under the cap, amber as it approaches,
+// red once translation has auto-paused (English fallback). Hidden until usage
+// data is available.
+function AiQuotaDot({ u }: { u: AiUsage }) {
+  const capPct = Math.round(u.safetyFraction * 100)
+  const color = u.capReached
+    ? '#EF4444'
+    : u.pctOfFree >= capPct * 0.7
+    ? '#F59E0B'
+    : '#34D399'
+  return (
+    <span
+      className="w-1.5 h-1.5 rounded-full live-dot shrink-0 ml-1"
+      style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}` }}
+      title={
+        u.capReached
+          ? `AI 翻译今日已达 ${capPct}% 免费额度上限，自动暂停并回退英文（绝不产生付费）`
+          : `AI 翻译今日用量：免费额度的 ${u.pctOfFree}%（达 ${capPct}% 自动暂停）`
+      }
+    />
+  )
+}
+
 interface Props {
   past: MacroEvent[]
   upcoming: MacroEvent[]
+  aiUsage?: AiUsage
 }
 
 type FilterKey = 'beat' | 'miss' | 'news'
@@ -177,7 +212,7 @@ function matchesFilter(e: MacroEvent, f: FilterKey): boolean {
   return e.outcome === f
 }
 
-export default function MacroEvents({ past, upcoming }: Props) {
+export default function MacroEvents({ past, upcoming, aiUsage }: Props) {
   const [tab, setTab] = useState<'past' | 'upcoming'>('upcoming')
   const [filters, setFilters] = useState<Set<FilterKey>>(new Set())
   const [assetFilters, setAssetFilters] = useState<Set<string>>(new Set())
@@ -269,6 +304,7 @@ export default function MacroEvents({ past, upcoming }: Props) {
               </button>
             )
           })}
+          {aiUsage && <AiQuotaDot u={aiUsage} />}
         </div>
       </div>
 

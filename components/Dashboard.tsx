@@ -6,7 +6,7 @@ import MultiAssetChart from './MultiAssetChart'
 import PriceCard from './PriceCard'
 import CorrelationMatrix from './CorrelationMatrix'
 import NotableMoves from './NotableMoves'
-import MacroEvents from './MacroEvents'
+import MacroEvents, { type AiUsage } from './MacroEvents'
 import type { MacroEvent } from '@/lib/events'
 
 const RANGES = [
@@ -27,32 +27,6 @@ interface MarketAsset {
   change: number | null
   changePercent: number | null
   error?: boolean
-}
-
-interface AiUsage {
-  pctOfFree: number
-  pctOfBudget: number
-  safetyFraction: number
-  capReached: boolean
-  neuronsUsed: number
-  dailyFreeNeurons: number
-}
-
-// Small badge showing today's Workers AI translation quota usage. Green well
-// under the cap, amber approaching it, red once translation auto-pauses.
-function AiQuotaBadge({ u }: { u: AiUsage }) {
-  const capPct = Math.round(u.safetyFraction * 100)
-  const color = u.capReached ? '#EF4444' : u.pctOfFree >= capPct * 0.7 ? '#F59E0B' : '#34D399'
-  const label = u.capReached ? `AI翻译 已暂停` : `AI翻译 ${u.pctOfFree}%`
-  return (
-    <span
-      className="text-[10px] font-mono px-1.5 py-0.5 rounded border"
-      style={{ color, borderColor: `${color}40`, backgroundColor: `${color}14` }}
-      title={`今日 Workers AI 翻译用量：免费额度的 ${u.pctOfFree}%（达到 ${capPct}% 自动暂停并回退英文，绝不产生付费）· 已用约 ${u.neuronsUsed}/${u.dailyFreeNeurons} neurons`}
-    >
-      {label}
-    </span>
-  )
 }
 
 // Risk-On / Risk-Off: stocks & crypto up + dollar down = risk appetite
@@ -320,16 +294,14 @@ export default function Dashboard() {
         </div>
 
         <div className="lg:col-span-3 h-[520px] lg:h-[440px] rounded-xl bg-gray-900/70 border border-gray-700/50 p-4 backdrop-blur-sm flex flex-col">
-          <div className="flex items-baseline justify-between mb-1 gap-2">
-            <h2 className="text-sm font-semibold text-gray-100 shrink-0">Macro Events</h2>
-            <div className="flex items-center gap-2 min-w-0">
-              {newsData?.aiUsage && <AiQuotaBadge u={newsData.aiUsage} />}
-              <span className="text-[10px] text-gray-500 truncate">重大宏观事件与日程</span>
-            </div>
+          <div className="flex items-baseline justify-between mb-1">
+            <h2 className="text-sm font-semibold text-gray-100">Macro Events</h2>
+            <span className="text-[10px] text-gray-500">重大宏观事件与日程</span>
           </div>
           <MacroEvents
             past={pastEvents}
             upcoming={eventsData?.upcoming ?? []}
+            aiUsage={newsData?.aiUsage}
           />
         </div>
       </div>

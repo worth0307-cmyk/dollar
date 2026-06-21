@@ -141,7 +141,8 @@ export function releaseToEvent(r: Release): MacroEvent {
   }
 }
 
-// ─── 已公布数据（在此录入真实公布值；下方为示例，请按官方数据核对/替换）──────────
+// ─── 已公布数据（手动兜底；自动来源见下方 buildReleaseFromFeed）─────────────────
+// 这里只需保留自动源覆盖不到的历史数据（自动源仅覆盖最近一两周）。
 export const RELEASES: Release[] = [
   // 示例：1月CPI同比2.4% < 预期2.6% → 通胀降温 → 利好(绿↑)
   { date: '2026-02-11', indicator: 'cpi', actual: 2.4, forecast: 2.6, previous: 2.7, impact: 'medium', title: '美国 CPI 数据（1月）' },
@@ -150,3 +151,56 @@ export const RELEASES: Release[] = [
 ]
 
 export const RELEASE_EVENTS: MacroEvent[] = RELEASES.map(releaseToEvent)
+
+// ─── 自动 beat/miss（从经济日历 feed 的 actual 值推导）────────────────────────
+// 经济日历 feed（ForexFactory）在数据公布后会带上 actual 值。下面把英文事件标题
+// 匹配到上方的 INDICATORS，再用同一套 bullishWhen 逻辑自动判定超预期/不及预期，
+// 无需任何人工录入。feed 未提供 actual 时本函数返回 null，由手动 RELEASES 兜底。
+
+// feed 标题关键词 → 指标 key
+const FEED_KEYWORDS: Array<{ re: RegExp; key: keyof typeof INDICATORS }> = [
+  { re: /core pce|pce price|personal consumption/i, key: 'pce' },
+  { re: /core cpi|consumer price|cpi|inflation rate/i, key: 'cpi' },
+  { re: /core ppi|producer price|\bppi\b/i, key: 'ppi' },
+  { re: /unemployment rate/i, key: 'unemployment' },
+  { re: /non.?farm|\bnfp\b|payroll/i, key: 'nfp' },
+  { re: /\bgdp\b|gross domestic/i, key: 'gdp' },
+  { re: /retail sales/i, key: 'retail' },
+]
+
+function matchIndicator(title: string): keyof typeof INDICATORS | null {
+  for (const { re, key } of FEED_KEYWORDS) if (re.test(title)) return key
+  return null
+}
+
+// "2.7%" → 2.7, "150K" → 150, "-0.1%" → -0.1, "" / undefined → null
+function parseNum(raw: string | undefined): number | null {
+  if (raw == null) return null
+  const n = parseFloat(String(raw).replace(/,/g, ''))
+  return Number.isFinite(n) ? n : null
+}
+
+// Build an auto-detected release event from a feed row, or null if the row is
+// not a known indicator or has no usable actual/forecast pair.
+export function buildReleaseFromFeed(raw: {
+  title: string
+  date: string // YYYY-MM-DD
+  actual?: string
+  forecast?: string
+  previous?: string
+  impact?: 'high' | 'medium' | 'low'
+}): MacroEvent | null {
+  const key = matchIndicator(raw.title)
+  if (!key) return null
+  const actual = parseNum(raw.actual)
+  const forecast = parseNum(raw.forecast)
+  if (actual == null || forecast == null) return null
+  return releaseToEvent({
+    date: raw.date,
+    indicator: key,
+    actual,
+    forecast,
+    previous: parseNum(raw.previous) ?? undefined,
+    impact: raw.impact ?? 'medium',
+  })
+}
