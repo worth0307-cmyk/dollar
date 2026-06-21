@@ -69,7 +69,7 @@ export default function Dashboard() {
     { revalidateOnFocus: false, refreshInterval: 0 }
   )
 
-  // Geopolitical news is fetched separately so a slow GDELT never blocks events.
+  // Geopolitical news is fetched separately so a slow feed never blocks events.
   const { data: newsData } = useSWR<{ news: MacroEvent[] }>(
     '/api/news',
     fetcher,
@@ -248,7 +248,7 @@ export default function Dashboard() {
                 </span>
               </span>
             )}
-            <span className="ml-auto">Data: Yahoo Finance · ~15min delay</span>
+            <span className="ml-auto">行情数据 · ~15min 延迟</span>
           </div>
         </div>
 
@@ -306,7 +306,7 @@ export default function Dashboard() {
 
       {/* ── Footer ── */}
       <div className="text-center text-[10px] text-gray-500 font-mono tracking-wide pb-2">
-        价格每 30s 刷新 · 历史每 60s 刷新 · Yahoo Finance ≈ 15min 延迟
+        价格每 30s 刷新 · 历史每 60s 刷新 · 行情数据 ≈ 15min 延迟
       </div>
     </div>
   )

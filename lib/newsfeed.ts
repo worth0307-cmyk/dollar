@@ -43,6 +43,39 @@ function inferImpact(title: string): 'high' | 'medium' {
   return HIGH_RE.test(title) ? 'high' : 'medium'
 }
 
+// Asset key → Chinese name, for the auto-generated impact narrative.
+const ASSET_ZH: Record<string, string> = {
+  brent: '布伦特原油',
+  gold: '黄金',
+  dxy: '美元',
+  sp500: '美股',
+  btc: '比特币',
+}
+
+// English headline keywords → Chinese topic phrase, so the (English) headline
+// gets a Chinese gist line in the same style as the 超预期/不及预期 analysis.
+const ZH_TOPICS: Array<{ re: RegExp; phrase: string }> = [
+  { re: /hormuz|strait/i, phrase: '霍尔木兹海峡局势' },
+  { re: /opec/i, phrase: 'OPEC+ 产量动态' },
+  { re: /sanction|embargo/i, phrase: '制裁与禁运' },
+  { re: /war|attack|strike|missile|invasion|conflict|military|troops/i, phrase: '地缘冲突' },
+  { re: /pipeline|tanker|refin/i, phrase: '能源基础设施' },
+  { re: /supply|output|production|export|barrel/i, phrase: '原油供应' },
+  { re: /gas|lng/i, phrase: '天然气市场' },
+  { re: /iran|russia|saudi|venezuela|israel|ukraine/i, phrase: '产油国局势' },
+  { re: /price|surge|plunge|rally|rise|fall|drop/i, phrase: '油价波动' },
+]
+
+// Auto-generated Chinese impact line — keeps the news feature fully automatic
+// while presenting a Chinese summary alongside the source headline.
+function zhNarrative(title: string, assets: string[], impact: 'high' | 'medium'): string {
+  const topics = ZH_TOPICS.filter((t) => t.re.test(title)).map((t) => t.phrase).slice(0, 2)
+  const topicStr = topics.length ? topics.join('、') : '能源市场动态'
+  const assetStr = assets.map((a) => ASSET_ZH[a]).filter(Boolean).join('、') || '能源资产'
+  const lead = impact === 'high' ? '重大' : ''
+  return `${lead}${topicStr} → 关注${assetStr}波动`
+}
+
 function decodeEntities(s: string): string {
   return s
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
@@ -125,12 +158,14 @@ function toEvents(items: NewsItem[]): MacroEvent[] {
     .slice(0, 12)
     .map((a): MacroEvent => {
       const title = a.title.length > 72 ? a.title.slice(0, 69) + '…' : a.title
+      const impact = inferImpact(a.title)
+      const assets = inferAssets(a.title)
       return {
         date: a.date,
         title,
-        description: `${a.source} 报道`,
-        impact: inferImpact(a.title),
-        assets: inferAssets(a.title),
+        description: zhNarrative(a.title, assets, impact),
+        impact,
+        assets,
         type: 'past',
         url: a.url,
         source: 'news',

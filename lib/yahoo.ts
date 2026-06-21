@@ -78,7 +78,9 @@ const INTERVAL: Record<string, string> = {
   '1mo': '1d',
   '3mo': '1d',
   '6mo': '1d',
-  '1y': '1wk',
+  // Daily (not weekly) so Notable-Move dots — computed on daily data — land on
+  // real chart points, and so the actual >2σ spike days are visible on the line.
+  '1y': '1d',
 }
 
 const KEY_TO_SYMBOL: Record<string, string> = {

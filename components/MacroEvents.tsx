@@ -22,6 +22,7 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
   const hasBeatMiss = !!(event.beat || event.miss)
   // Past events with auto-detected outcome show the matched analysis directly
   const autoOutcome = !isUpcoming && event.outcome
+  const isNews = event.source === 'news'
   const clickable = hasBeatMiss && !autoOutcome
 
   return (
@@ -36,6 +37,8 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
               ? 'border-emerald-400 bg-emerald-900/50'
               : autoOutcome === 'miss'
               ? 'border-red-400 bg-red-900/50'
+              : isNews
+              ? 'border-sky-400 bg-sky-900/50'
               : 'border-gray-500 bg-gray-700'
           }`}
         />
@@ -91,6 +94,15 @@ function EventCard({ event, isUpcoming }: { event: MacroEvent; isUpcoming?: bool
                 </span>
               ))}
             </div>
+
+            {/* News: source attribution line, styled like the outcome analysis */}
+            {isNews && (
+              <div className="mt-2">
+                <div className="text-xs text-sky-400/80 leading-snug">
+                  <span className="font-mono font-medium">📰 来源：</span>OilPrice.com · 实时地缘能源新闻
+                </div>
+              </div>
+            )}
 
             {/* Past events: show only the matched outcome analysis */}
             {autoOutcome && (
