@@ -34,7 +34,7 @@ const FEEDS: FeedConfig[] = [
     url: 'https://oilprice.com/rss/main',
     name: 'OilPrice.com',
     assetHints: ['brent'],
-    maxItems: 8,
+    maxItems: 30,
   },
   {
     // US Federal Reserve MONETARY-POLICY press releases only — FOMC statements,
@@ -44,14 +44,14 @@ const FEEDS: FeedConfig[] = [
     url: 'https://www.federalreserve.gov/feeds/press_monetary.xml',
     name: 'Federal Reserve',
     assetHints: ['dxy'],
-    maxItems: 5,
+    maxItems: 30,
   },
   {
     // Crypto → BTC. WordPress-class feed, no datacenter-IP block (verified).
     url: 'https://cointelegraph.com/rss',
     name: 'CoinTelegraph',
     assetHints: ['btc'],
-    maxItems: 8,
+    maxItems: 30,
   },
   {
     // Commodities news → Gold (+ oil). Same domain as the verified-working
@@ -66,7 +66,7 @@ const FEEDS: FeedConfig[] = [
     url: 'https://www.investing.com/rss/news_11.rss',
     name: 'Investing.com 商品',
     assetHints: [],
-    maxItems: 5,
+    maxItems: 30,
   },
   {
     // Stock-market news → S&P 500. Clean equities coverage, globally reachable
@@ -74,7 +74,7 @@ const FEEDS: FeedConfig[] = [
     url: 'https://www.investing.com/rss/news_25.rss',
     name: 'Investing.com 股市',
     assetHints: ['sp500'],
-    maxItems: 5,
+    maxItems: 30,
   },
 ]
 
@@ -234,8 +234,8 @@ function roundRobin<T>(groups: T[][], cap: number): T[] {
 
 // Drop items whose pubDate is older than this — keeps the feed fresh and stops
 // low-frequency feeds (Fed, Calculated Risk) from surfacing stale headlines.
-const MAX_AGE_DAYS = 60
-const GLOBAL_CAP = 30
+const MAX_AGE_DAYS = 180
+const GLOBAL_CAP = 120
 
 const NEWS_TIMEOUT = 10_000
 const TRANSLATE_TIMEOUT = 5_000
