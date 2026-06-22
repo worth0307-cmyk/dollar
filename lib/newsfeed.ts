@@ -196,12 +196,15 @@ function parseRss(xml: string, sourceName: string): NewsItem[] {
   })
 }
 
-// Generic dedup — keeps first occurrence of each 3-keyword fingerprint.
-function dedup<T extends { title: string }>(items: T[]): T[] {
+// Generic dedup — keeps first occurrence of each (date + 3-keyword) fingerprint.
+// The date is part of the key so recurring, identically-titled events (e.g. the
+// monthly "Federal Reserve issues FOMC statement") survive across dates; only
+// genuine same-day cross-source duplicates of one story are collapsed.
+function dedup<T extends { title: string; date?: string }>(items: T[]): T[] {
   const STOPWORDS = /^(the|this|that|with|from|have|will|been|were|they|after|amid|over|into|says|said|about|could|would)$/
   const seen = new Set<string>()
   return items.filter((a) => {
-    const fp = a.title
+    const kw = a.title
       .toLowerCase()
       .replace(/[^a-z\s]/g, ' ')
       .split(/\s+/)
@@ -209,7 +212,9 @@ function dedup<T extends { title: string }>(items: T[]): T[] {
       .slice(0, 3)
       .sort()
       .join('|')
-    if (!fp || seen.has(fp)) return false
+    if (!kw) return false
+    const fp = `${a.date ?? ''}#${kw}`
+    if (seen.has(fp)) return false
     seen.add(fp)
     return true
   })
