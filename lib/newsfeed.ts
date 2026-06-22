@@ -54,39 +54,23 @@ const FEEDS: FeedConfig[] = [
     maxItems: 4,
   },
   {
-    // Gold / precious-metals + commodities → Gold. Kitco's article pages are
-    // globally reachable (unlike Mining.com, whose CloudFront pages 403 for
-    // some regions), so its ↗ links actually open for the reader.
-    url: 'https://www.kitco.com/news/category/commodities/rss',
-    name: 'Kitco News',
+    // Commodities news (gold, silver, metals) → Gold. Same domain as the
+    // verified-working stock feed below, so it fetches from the Worker and its
+    // article pages open for the reader. feed id news_11 = "Commodities News".
+    // (Kitco, 24hGold, Mining.com, SchiffGold all failed: either 0 items from
+    // the Worker, or datacenter-IP-blocked article pages.)
+    url: 'https://www.investing.com/rss/news_11.rss',
+    name: 'Investing.com 商品',
     assetHints: ['gold'],
     maxItems: 3,
-  },
-  {
-    // Gold/precious-metals aggregator → Gold. Old-school site with no modern
-    // bot WAF, so both its RSS and article pages serve datacenter IPs — unlike
-    // Mining.com, which CloudFront-blocks datacenter IPs on article pages
-    // (confirmed: its ↗ links 403 even through a US datacenter proxy).
-    url: 'https://www.24hgold.com/english/rss.aspx',
-    name: '24hGold',
-    assetHints: ['gold'],
-    maxItems: 2,
   },
   {
     // Stock-market news → S&P 500. Clean equities coverage, globally reachable
     // (has a Chinese edition), confirmed feed id news_25 = "Stock Market News".
     url: 'https://www.investing.com/rss/news_25.rss',
-    name: 'Investing.com',
+    name: 'Investing.com 股市',
     assetHints: ['sp500'],
     maxItems: 3,
-  },
-  {
-    // Markets/commodities/forex headlines → S&P 500. Backs up Investing.com in
-    // case its feed is unreachable from the Worker's datacenter IP.
-    url: 'https://finance.yahoo.com/news/rssindex',
-    name: 'Yahoo Finance',
-    assetHints: ['sp500'],
-    maxItems: 2,
   },
 ]
 
