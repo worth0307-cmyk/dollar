@@ -54,28 +54,39 @@ const FEEDS: FeedConfig[] = [
     maxItems: 4,
   },
   {
-    // Mining + metals → Gold. WordPress /feed/, same class as CoinTelegraph.
-    url: 'https://www.mining.com/feed/',
-    name: 'Mining.com',
+    // Gold / precious-metals + commodities → Gold. Kitco's article pages are
+    // globally reachable (unlike Mining.com, whose CloudFront pages 403 for
+    // some regions), so its ↗ links actually open for the reader.
+    url: 'https://www.kitco.com/news/category/commodities/rss',
+    name: 'Kitco News',
     assetHints: ['gold'],
     maxItems: 3,
   },
   {
-    // Dedicated precious-metals analysis → Gold. WordPress /feed/.
-    // (Replaces Kitco, whose old rss/news.xml URL is dead after a site rebuild.)
-    url: 'https://schiffgold.com/feed/',
-    name: 'SchiffGold',
+    // Gold/precious-metals aggregator → Gold. Old-school site with no modern
+    // bot WAF, so both its RSS and article pages serve datacenter IPs — unlike
+    // Mining.com, which CloudFront-blocks datacenter IPs on article pages
+    // (confirmed: its ↗ links 403 even through a US datacenter proxy).
+    url: 'https://www.24hgold.com/english/rss.aspx',
+    name: '24hGold',
     assetHints: ['gold'],
-    maxItems: 3,
+    maxItems: 2,
   },
   {
-    // Macro + markets blog widely read by equity traders → S&P 500. Hosted on
-    // Blogger (Google), so it is essentially never blocked from datacenter IPs.
-    // alt=rss forces RSS <item> output (Blogger defaults to Atom <entry>).
-    url: 'https://www.calculatedriskblog.com/feeds/posts/default?alt=rss',
-    name: 'Calculated Risk',
+    // Stock-market news → S&P 500. Clean equities coverage, globally reachable
+    // (has a Chinese edition), confirmed feed id news_25 = "Stock Market News".
+    url: 'https://www.investing.com/rss/news_25.rss',
+    name: 'Investing.com',
     assetHints: ['sp500'],
     maxItems: 3,
+  },
+  {
+    // Markets/commodities/forex headlines → S&P 500. Backs up Investing.com in
+    // case its feed is unreachable from the Worker's datacenter IP.
+    url: 'https://finance.yahoo.com/news/rssindex',
+    name: 'Yahoo Finance',
+    assetHints: ['sp500'],
+    maxItems: 2,
   },
 ]
 
