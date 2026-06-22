@@ -29,7 +29,8 @@ export default function CorrelationMatrix({ keys, matrix, selectedKey, onSelectK
 
   return (
     <div className="flex flex-col h-full">
-      <div className="grid gap-1" style={{ gridTemplateColumns: cols }}>
+      <div className="overflow-x-auto">
+      <div className="grid gap-1 min-w-[260px]" style={{ gridTemplateColumns: cols }}>
         {/* Header row */}
         <div />
         {keys.map((k) => {
@@ -67,6 +68,7 @@ export default function CorrelationMatrix({ keys, matrix, selectedKey, onSelectK
             onSelectKey={onSelectKey}
           />
         ))}
+      </div>
       </div>
 
       <div className="mt-auto rounded-lg bg-gray-800/50 border border-gray-700/50 p-3 text-[11px] text-gray-400 space-y-1 leading-relaxed">

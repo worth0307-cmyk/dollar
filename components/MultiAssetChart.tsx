@@ -151,42 +151,42 @@ export default function MultiAssetChart({
       return next
     })
 
-  const ranges = new Map<string, { min: number; max: number }>()
-  ASSETS.forEach((a) => {
-    let min = Infinity
-    let max = -Infinity
-    data.forEach((row) => {
-      const v = row[a.key]
-      if (v != null) {
-        if (v < min) min = v
-        if (v > max) max = v
-      }
-    })
-    if (min !== Infinity) ranges.set(a.key, { min, max })
-  })
-
-  const normalize = (key: string, v: number) => {
-    const r = ranges.get(key)
-    if (!r) return 50
-    const span = r.max - r.min
-    return span > 0 ? ((v - r.min) / span) * 100 : 50
-  }
-
-  const chartData = data.map((row) => {
-    const out: Record<string, number> = { ...row }
+  const { chartData, movesByKey } = useMemo(() => {
+    const ranges = new Map<string, { min: number; max: number }>()
     ASSETS.forEach((a) => {
-      const v = row[a.key]
-      if (v != null) out[`${a.key}__n`] = normalize(a.key, v)
+      let min = Infinity, max = -Infinity
+      data.forEach((row) => {
+        const v = row[a.key]
+        if (v != null) { if (v < min) min = v; if (v > max) max = v }
+      })
+      if (min !== Infinity) ranges.set(a.key, { min, max })
     })
-    return out
-  })
 
-  // O(1) move lookup: key → Map<time, Move>
-  const movesByKey = new Map<string, Map<number, Move>>()
-  moves?.forEach((m) => {
-    if (!movesByKey.has(m.key)) movesByKey.set(m.key, new Map())
-    movesByKey.get(m.key)!.set(m.time, m)
-  })
+    const normalize = (key: string, v: number) => {
+      const r = ranges.get(key)
+      if (!r) return 50
+      const span = r.max - r.min
+      return span > 0 ? ((v - r.min) / span) * 100 : 50
+    }
+
+    const chartData = data.map((row) => {
+      const out: Record<string, number> = { ...row }
+      ASSETS.forEach((a) => {
+        const v = row[a.key]
+        if (v != null) out[`${a.key}__n`] = normalize(a.key, v)
+      })
+      return out
+    })
+
+    // O(1) move lookup: key → Map<time, Move>
+    const movesByKey = new Map<string, Map<number, Move>>()
+    moves?.forEach((m) => {
+      if (!movesByKey.has(m.key)) movesByKey.set(m.key, new Map())
+      movesByKey.get(m.key)!.set(m.time, m)
+    })
+
+    return { chartData, movesByKey }
+  }, [data, moves])
 
   // Non-news, high/medium impact past events within the chart's time range.
   const chartMin = data[0]?.time as number | undefined
@@ -236,7 +236,7 @@ export default function MultiAssetChart({
           <button
             key={a}
             onClick={() => onAnchorChange(a)}
-            className={`text-[10px] px-2 py-0.5 rounded font-mono transition-colors ${
+            className={`text-[10px] px-2 py-1 min-h-[36px] rounded font-mono transition-colors ${
               anchor === a
                 ? 'bg-indigo-500/25 text-indigo-300 border border-indigo-500/40'
                 : 'text-gray-500 hover:text-gray-300 border border-transparent'
@@ -254,7 +254,7 @@ export default function MultiAssetChart({
           <button
             onClick={() => setShowEvents((v) => !v)}
             title={showEvents ? '隐藏宏观事件参考线' : '显示宏观事件参考线（红=重大，橙=中等）'}
-            className={`ml-auto text-[10px] px-2 py-0.5 rounded font-mono border transition-colors ${
+            className={`ml-auto text-[10px] px-2 py-1 min-h-[36px] rounded font-mono border transition-colors ${
               showEvents
                 ? 'bg-amber-500/15 text-amber-400 border-amber-500/40'
                 : 'text-gray-500 hover:text-gray-300 border-gray-700'

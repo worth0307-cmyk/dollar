@@ -158,9 +158,10 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Clock */}
+          {/* Clock — suppressHydrationWarning because server renders '' while client
+              sets the real time in useEffect; the mismatch is intentional. */}
           <div className="text-right">
-            <div className="font-mono text-lg sm:text-xl text-gray-200 tracking-widest">{now}</div>
+            <div suppressHydrationWarning className="font-mono text-lg sm:text-xl text-gray-200 tracking-widest">{now}</div>
             {lastUpdated && (
               <div className="text-[10px] text-gray-500 font-mono">
                 updated {lastUpdated.toLocaleTimeString('zh-CN', { hour12: false })}

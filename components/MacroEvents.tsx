@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { ASSETS, ASSET_BY_KEY } from '@/lib/assets'
 import type { MacroEvent } from '@/lib/events'
 
@@ -232,13 +232,22 @@ export default function MacroEvents({ past, upcoming, aiUsage }: Props) {
     })
 
   const base = tab === 'past' ? past : upcoming
-  const events = (() => {
+
+  const filterCounts = useMemo(
+    () => Object.fromEntries(FILTERS.map((f) => [f.key, past.filter((e) => matchesFilter(e, f.key)).length])),
+    [past]
+  )
+  const assetCounts = useMemo(
+    () => Object.fromEntries(ASSETS.map((a) => [a.key, base.filter((e) => e.assets.includes(a.key)).length])),
+    [base]
+  )
+
+  const events = useMemo(() => {
     let result = base
-    // Outcome/news filters only make sense on 历史事件; asset filters apply to both tabs.
     if (tab === 'past' && filters.size > 0) result = result.filter((e) => [...filters].some((f) => matchesFilter(e, f)))
     if (assetFilters.size > 0) result = result.filter((e) => e.assets.some((a) => assetFilters.has(a)))
     return result
-  })()
+  }, [base, tab, filters, assetFilters])
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -269,7 +278,7 @@ export default function MacroEvents({ past, upcoming, aiUsage }: Props) {
           {tab === 'past' &&
             FILTERS.map((f) => {
               const on = filters.has(f.key)
-              const count = past.filter((e) => matchesFilter(e, f.key)).length
+              const count = filterCounts[f.key] ?? 0
               return (
                 <button
                   key={f.key}
@@ -287,7 +296,7 @@ export default function MacroEvents({ past, upcoming, aiUsage }: Props) {
             })}
           {ASSETS.map((a) => {
             const on = assetFilters.has(a.key)
-            const count = base.filter((e) => e.assets.includes(a.key)).length
+            const count = assetCounts[a.key] ?? 0
             return (
               <button
                 key={a.key}

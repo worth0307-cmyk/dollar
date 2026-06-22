@@ -36,6 +36,19 @@ function buildMaps(
   })
 }
 
+// Shared 1Y daily price maps — fetched once and reused by both getYearMoves()
+// and getYtdBases() to avoid hitting Yahoo twice on the same cache miss.
+async function get1YMaps(): Promise<(PriceMap | null)[]> {
+  const cacheKey = 'raw:1y'
+  const hit = cacheGet<(PriceMap | null)[]>(cacheKey)
+  if (hit) return hit
+
+  const results = await Promise.allSettled(KEYS.map((k) => fetchYahooHistory(k, '1y', '1d')))
+  const maps = buildMaps(results)
+  cacheSet(cacheKey, maps, YTD_BASELINE_TTL)
+  return maps
+}
+
 // Notable moves are computed once over a stable ~1Y window so a day's z-score
 // (its "abnormality") is an intrinsic property, independent of the chart range
 // being viewed. The route then slices these to the display window — making the
@@ -45,8 +58,7 @@ async function getYearMoves(): Promise<ReturnType<typeof notableMoves>> {
   const hit = cacheGet<ReturnType<typeof notableMoves>>(cacheKey)
   if (hit) return hit
 
-  const results = await Promise.allSettled(KEYS.map((k) => fetchYahooHistory(k, '1y', '1d')))
-  const maps = buildMaps(results)
+  const maps = await get1YMaps()
   // High cap so we keep every >2σ day in the year; the route caps display to 20.
   const moves = notableMoves(KEYS, maps, 1000, 2)
 
@@ -63,10 +75,7 @@ async function getYtdBases(): Promise<(number | null)[]> {
   const year = new Date().getFullYear()
   const ytdStart = `${year}-01-01`
 
-  // Force daily interval so we pick the exact first trading day of the year,
-  // not the (less precise) first weekly bar which can be several days off.
-  const results = await Promise.allSettled(KEYS.map((k) => fetchYahooHistory(k, '1y', '1d')))
-  const bases = buildMaps(results).map((m) => {
+  const bases = (await get1YMaps()).map((m) => {
     if (!m) return null
     for (const d of [...m.keys()].sort()) {
       if (d >= ytdStart) return m.get(d)!
