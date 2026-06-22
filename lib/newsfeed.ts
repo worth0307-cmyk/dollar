@@ -54,14 +54,18 @@ const FEEDS: FeedConfig[] = [
     maxItems: 4,
   },
   {
-    // Commodities news (gold, silver, metals) → Gold. Same domain as the
-    // verified-working stock feed below, so it fetches from the Worker and its
-    // article pages open for the reader. feed id news_11 = "Commodities News".
+    // Commodities news → Gold (+ oil). Same domain as the verified-working
+    // stock feed below, so it fetches from the Worker and its article pages
+    // open for the reader. feed id news_11 = "Commodities News".
     // (Kitco, 24hGold, Mining.com, SchiffGold all failed: either 0 items from
     // the Worker, or datacenter-IP-blocked article pages.)
+    //
+    // No fixed assetHint: this feed mixes gold/silver with oil/copper, so we
+    // tag by headline keywords instead — gold stories → gold, oil → brent —
+    // rather than forcing every item under the gold filter.
     url: 'https://www.investing.com/rss/news_11.rss',
     name: 'Investing.com 商品',
-    assetHints: ['gold'],
+    assetHints: [],
     maxItems: 3,
   },
   {
