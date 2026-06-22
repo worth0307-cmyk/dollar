@@ -26,33 +26,56 @@ interface FeedConfig {
 }
 
 // Free RSS feeds chosen by topic coverage and low likelihood of datacenter IP
-// blocks. Each failed feed silently contributes zero items.
+// blocks. Each failed feed silently contributes zero items. Coverage maps to
+// the five tracked assets: Brent / DXY / BTC / Gold / S&P 500.
 const FEEDS: FeedConfig[] = [
   {
+    // Energy + geopolitics → Brent. Custom CMS, no datacenter-IP block (verified).
     url: 'https://oilprice.com/rss/main',
     name: 'OilPrice.com',
     assetHints: ['brent'],
     maxItems: 5,
   },
   {
-    // US Federal Reserve press releases — FOMC statements, rate decisions,
-    // supervisory guidance. Government site, never blocks datacenter IPs.
-    url: 'https://www.federalreserve.gov/feeds/press_all.xml',
+    // US Federal Reserve MONETARY-POLICY press releases only — FOMC statements,
+    // rate decisions, policy-implementation notes. The press_monetary feed
+    // excludes the regulatory/obituary noise that press_all carried. Government
+    // site, never blocks datacenter IPs.
+    url: 'https://www.federalreserve.gov/feeds/press_monetary.xml',
     name: 'Federal Reserve',
     assetHints: ['dxy'],
     maxItems: 3,
   },
   {
+    // Crypto → BTC. WordPress-class feed, no datacenter-IP block (verified).
     url: 'https://cointelegraph.com/rss',
     name: 'CoinTelegraph',
     assetHints: ['btc'],
     maxItems: 4,
   },
   {
-    url: 'https://www.kitco.com/rss/news.xml',
-    name: 'Kitco News',
+    // Mining + metals → Gold. WordPress /feed/, same class as CoinTelegraph.
+    url: 'https://www.mining.com/feed/',
+    name: 'Mining.com',
     assetHints: ['gold'],
-    maxItems: 4,
+    maxItems: 3,
+  },
+  {
+    // Dedicated precious-metals analysis → Gold. WordPress /feed/.
+    // (Replaces Kitco, whose old rss/news.xml URL is dead after a site rebuild.)
+    url: 'https://schiffgold.com/feed/',
+    name: 'SchiffGold',
+    assetHints: ['gold'],
+    maxItems: 3,
+  },
+  {
+    // Macro + markets blog widely read by equity traders → S&P 500. Hosted on
+    // Blogger (Google), so it is essentially never blocked from datacenter IPs.
+    // alt=rss forces RSS <item> output (Blogger defaults to Atom <entry>).
+    url: 'https://www.calculatedriskblog.com/feeds/posts/default?alt=rss',
+    name: 'Calculated Risk',
+    assetHints: ['sp500'],
+    maxItems: 3,
   },
 ]
 
@@ -192,6 +215,28 @@ function dedup<T extends { title: string }>(items: T[]): T[] {
     return true
   })
 }
+
+// Round-robin merge: take item 0 from every group, then item 1, etc. This keeps
+// each asset class represented even when the global cap trims the list, instead
+// of letting whichever feed is listed first fill all the slots.
+function roundRobin<T>(groups: T[][], cap: number): T[] {
+  const out: T[] = []
+  const depth = Math.max(0, ...groups.map((g) => g.length))
+  for (let i = 0; i < depth && out.length < cap; i++) {
+    for (const g of groups) {
+      if (i < g.length) {
+        out.push(g[i])
+        if (out.length >= cap) break
+      }
+    }
+  }
+  return out
+}
+
+// Drop items whose pubDate is older than this — keeps the feed fresh and stops
+// low-frequency feeds (Fed, Calculated Risk) from surfacing stale headlines.
+const MAX_AGE_DAYS = 60
+const GLOBAL_CAP = 16
 
 const NEWS_TIMEOUT = 10_000
 const TRANSLATE_TIMEOUT = 5_000
@@ -394,15 +439,20 @@ export async function fetchGeopoliticalEvents(): Promise<MacroEvent[]> {
     })
   )
 
-  // Per-feed: drop very short titles, cap to maxItems, tag with asset hints.
-  const tagged: TaggedItem[] = []
-  for (const { feed, items } of feedResults) {
-    const capped = items.filter((a) => a.title.length > 10).slice(0, feed.maxItems)
-    for (const item of capped) tagged.push({ ...item, assetHints: feed.assetHints })
-  }
+  const minDate = new Date(Date.now() - MAX_AGE_DAYS * 86400_000).toISOString().slice(0, 10)
 
-  // Global dedup across all feeds, then cap total candidates.
-  const candidates = dedup(tagged).slice(0, 15)
+  // Per-feed: drop short/stale titles, sort newest-first, cap to maxItems, tag.
+  const groups: TaggedItem[][] = feedResults.map(({ feed, items }) =>
+    items
+      .filter((a) => a.title.length > 10 && a.date >= minDate && a.date <= today)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, feed.maxItems)
+      .map((item) => ({ ...item, assetHints: feed.assetHints }))
+  )
+
+  // Round-robin across feeds for balanced asset coverage, dedup near-duplicate
+  // stories, then cap the total list.
+  const candidates = dedup(roundRobin(groups, GLOBAL_CAP * 2)).slice(0, GLOBAL_CAP)
 
   const translated = await translateAll(candidates.map((a) => a.title))
 
