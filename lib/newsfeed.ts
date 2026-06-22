@@ -1,6 +1,8 @@
-// OilPrice.com RSS — free, energy/geopolitics focused, no per-IP rate limit.
-// Covers crude oil, OPEC, sanctions, and supply-disruption headlines.
-// We infer affected assets from the headline and classify impact level.
+// Multi-source financial news aggregator.
+// Each feed is fetched in parallel; a failing feed contributes 0 items
+// and never blocks the others. Sources are chosen for being unlikely
+// to block Cloudflare Worker datacenter IPs (government sites, small
+// independent publishers without CF Bot Management).
 
 import type { MacroEvent } from './events'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
@@ -13,28 +15,72 @@ interface NewsItem {
   source: string
 }
 
-// Title keywords → affected assets
+// Extended NewsItem carrying per-feed asset hints through the pipeline.
+type TaggedItem = NewsItem & { assetHints: string[] }
+
+interface FeedConfig {
+  url: string
+  name: string
+  assetHints: string[] // always merged into inferAssets result
+  maxItems: number     // cap per feed before global merge
+}
+
+// Free RSS feeds chosen by topic coverage and low likelihood of datacenter IP
+// blocks. Each failed feed silently contributes zero items.
+const FEEDS: FeedConfig[] = [
+  {
+    url: 'https://oilprice.com/rss/main',
+    name: 'OilPrice.com',
+    assetHints: ['brent'],
+    maxItems: 5,
+  },
+  {
+    // US Federal Reserve press releases — FOMC statements, rate decisions,
+    // supervisory guidance. Government site, never blocks datacenter IPs.
+    url: 'https://www.federalreserve.gov/feeds/press_all.xml',
+    name: 'Federal Reserve',
+    assetHints: ['dxy'],
+    maxItems: 3,
+  },
+  {
+    url: 'https://cointelegraph.com/rss',
+    name: 'CoinTelegraph',
+    assetHints: ['btc'],
+    maxItems: 4,
+  },
+  {
+    url: 'https://www.kitco.com/rss/news.xml',
+    name: 'Kitco News',
+    assetHints: ['gold'],
+    maxItems: 4,
+  },
+]
+
+// Title keywords → affected assets (keyword-based inference)
 const ASSET_SIGNALS: Array<{ re: RegExp; assets: string[] }> = [
   {
     re: /oil|crude|brent|opec|petroleum|refin|hormuz|strait|pipeline|lng|tanker|saudi|aramco|gas|energy/i,
     assets: ['brent'],
   },
-  { re: /gold|safe.?haven|bullion|precious metal/i, assets: ['gold'] },
-  { re: /dollar|usd|sanction|treasury|forex|fed\b/i, assets: ['dxy'] },
+  { re: /gold|safe.?haven|bullion|precious metal|silver/i, assets: ['gold'] },
+  { re: /dollar|usd|sanction|treasury|forex|fed\b|federal reserve|fomc|rate hike|rate cut/i, assets: ['dxy'] },
   { re: /stock|equit|nasdaq|dow jones|s&p|wall street|market (crash|plunge|surge)/i, assets: ['sp500'] },
-  { re: /bitcoin|crypto|btc|digital asset/i, assets: ['btc'] },
+  { re: /bitcoin|crypto|btc|digital asset|blockchain|defi/i, assets: ['btc'] },
 ]
 
 // Words that mark a HIGH-impact event
 const HIGH_RE =
-  /war|attack|bomb|strike|invasion|close[sd]?|closure|shutdown|seize[sd]?|sanction|crisis|emergency|hostage|blockade|missile|surge|plunge|crash/i
+  /war|attack|bomb|strike|invasion|close[sd]?|closure|shutdown|seize[sd]?|sanction|crisis|emergency|hostage|blockade|missile|surge|plunge|crash|halt|ban|hack|exploit|default|collapse/i
 
-function inferAssets(title: string): string[] {
-  const found = new Set<string>()
+function inferAssets(title: string, hints: string[] = []): string[] {
+  const found = new Set<string>(hints)
   for (const { re, assets } of ASSET_SIGNALS) {
     if (re.test(title)) assets.forEach((a) => found.add(a))
   }
-  if (found.size === 0 && /conflict|military|troops|forces|war|tension|israel|iran|russia|ukraine/i.test(title)) {
+  if (
+    found.size === hints.length &&
+    /conflict|military|troops|forces|war|tension|israel|iran|russia|ukraine/i.test(title)
+  ) {
     found.add('brent')
     found.add('gold')
   }
@@ -45,18 +91,18 @@ function inferImpact(title: string): 'high' | 'medium' {
   return HIGH_RE.test(title) ? 'high' : 'medium'
 }
 
-// Asset key → Chinese name, for the auto-generated impact narrative.
+// Asset key → Chinese name
 const ASSET_ZH: Record<string, string> = {
   brent: '布伦特原油',
   gold: '黄金',
-  dxy: '美元',
+  dxy: '美元指数',
   sp500: '美股',
   btc: '比特币',
 }
 
-// English headline keywords → Chinese topic phrase, so the (English) headline
-// gets a Chinese gist line in the same style as the 超预期/不及预期 analysis.
+// Headline keywords → Chinese topic phrase for the auto-generated narrative
 const ZH_TOPICS: Array<{ re: RegExp; phrase: string }> = [
+  // Energy / OilPrice
   { re: /hormuz|strait/i, phrase: '霍尔木兹海峡局势' },
   { re: /opec/i, phrase: 'OPEC+ 产量动态' },
   { re: /sanction|embargo/i, phrase: '制裁与禁运' },
@@ -65,15 +111,26 @@ const ZH_TOPICS: Array<{ re: RegExp; phrase: string }> = [
   { re: /supply|output|production|export|barrel/i, phrase: '原油供应' },
   { re: /gas|lng/i, phrase: '天然气市场' },
   { re: /iran|russia|saudi|venezuela|israel|ukraine/i, phrase: '产油国局势' },
-  { re: /price|surge|plunge|rally|rise|fall|drop/i, phrase: '油价波动' },
+  // Fed / macro
+  { re: /federal reserve|fomc|rate hike|rate cut|interest rate|monetary policy/i, phrase: '美联储货币政策' },
+  { re: /inflation|cpi|pce|core inflation/i, phrase: '通胀数据' },
+  { re: /employment|jobs|unemployment|payroll|nonfarm/i, phrase: '就业市场' },
+  { re: /dollar|usd|dxy|forex|exchange rate/i, phrase: '美元汇率' },
+  // Gold
+  { re: /gold|bullion|precious metal|silver/i, phrase: '黄金市场' },
+  // Crypto
+  { re: /bitcoin|btc|blockchain|defi|crypto/i, phrase: '加密货币市场' },
+  { re: /hack|exploit|breach|theft/i, phrase: '安全事件' },
+  // Equities
+  { re: /stock market|equit|s&p|nasdaq|wall street|earnings/i, phrase: '股市行情' },
+  // Generic price action
+  { re: /price|surge|plunge|rally|rise|fall|drop/i, phrase: '市场价格波动' },
 ]
 
-// Auto-generated Chinese impact line — keeps the news feature fully automatic
-// while presenting a Chinese summary alongside the source headline.
 function zhNarrative(title: string, assets: string[], impact: 'high' | 'medium'): string {
   const topics = ZH_TOPICS.filter((t) => t.re.test(title)).map((t) => t.phrase).slice(0, 2)
-  const topicStr = topics.length ? topics.join('、') : '能源市场动态'
-  const assetStr = assets.map((a) => ASSET_ZH[a]).filter(Boolean).join('、') || '能源资产'
+  const topicStr = topics.length ? topics.join('、') : '宏观金融市场动态'
+  const assetStr = assets.map((a) => ASSET_ZH[a]).filter(Boolean).join('、') || '相关资产'
   const lead = impact === 'high' ? '重大' : ''
   return `${lead}${topicStr} → 关注${assetStr}波动`
 }
@@ -95,7 +152,7 @@ function pick(block: string, tag: string): string {
   return m ? decodeEntities(m[1]) : ''
 }
 
-// "Wed, 18 Jun 2026 14:30:00 GMT" → "2026-06-21"
+// "Wed, 18 Jun 2026 14:30:00 GMT" → "2026-06-18"
 function toIsoDate(pubDate: string): string {
   const t = Date.parse(pubDate)
   return Number.isNaN(t)
@@ -103,7 +160,7 @@ function toIsoDate(pubDate: string): string {
     : new Date(t).toISOString().slice(0, 10)
 }
 
-function parseRss(xml: string): NewsItem[] {
+function parseRss(xml: string, sourceName: string): NewsItem[] {
   const items = xml.match(/<item[\s\S]*?<\/item>/gi) ?? []
   return items.map((block) => {
     const title = pick(block, 'title').trim()
@@ -112,14 +169,14 @@ function parseRss(xml: string): NewsItem[] {
       title,
       url,
       date: toIsoDate(pick(block, 'pubDate')),
-      source: 'OilPrice.com',
+      source: sourceName,
     }
   })
 }
 
-// Drop near-duplicate stories by a 3-keyword fingerprint of the title.
-function dedup(items: NewsItem[]): NewsItem[] {
-  const STOPWORDS = /^(the|this|that|with|from|have|will|been|were|they|after|amid|over|into|says|said|about|could|would|amid)$/
+// Generic dedup — keeps first occurrence of each 3-keyword fingerprint.
+function dedup<T extends { title: string }>(items: T[]): T[] {
+  const STOPWORDS = /^(the|this|that|with|from|have|will|been|were|they|after|amid|over|into|says|said|about|could|would)$/
   const seen = new Set<string>()
   return items.filter((a) => {
     const fp = a.title
@@ -139,28 +196,27 @@ function dedup(items: NewsItem[]): NewsItem[] {
 const NEWS_TIMEOUT = 10_000
 const TRANSLATE_TIMEOUT = 5_000
 
-const FEED_URL = 'https://oilprice.com/rss/main'
+const UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
+// Fetch one feed; silently returns [] on any network/parse error.
+async function fetchOneFeed(feed: FeedConfig): Promise<NewsItem[]> {
+  try {
+    const res = await fetch(feed.url, {
+      headers: { 'User-Agent': UA, Accept: 'application/rss+xml, application/xml, text/xml, */*' },
+      signal: AbortSignal.timeout(NEWS_TIMEOUT),
+    })
+    if (!res.ok) return []
+    const body = await res.text()
+    return parseRss(body, feed.name)
+  } catch {
+    return []
+  }
+}
 
 // ── Translation ────────────────────────────────────────────────────────────
-// Primary: Cloudflare Workers AI (m2m100). The model runs INSIDE Cloudflare's
-// network, so it is never blocked or rate-limited by the shared egress IP the
-// way third-party services (MyMemory / Google) are. Needs two env vars set in
-// the Cloudflare deployment:
-//   CF_ACCOUNT_ID  — your Cloudflare account id
-//   CF_AI_TOKEN    — an API token with the "Workers AI" permission
-// Fallback: MyMemory (best-effort, free, no key) → original English title.
 const CF_AI_MODEL = '@cf/meta/m2m100-1.2b'
 
-// Read creds lazily, from the Cloudflare binding first, on every call.
-//
-// Why not `process.env` at module top level: dashboard-set vars/secrets are
-// Worker BINDINGS. Under @opennextjs/cloudflare they live on
-// getCloudflareContext().env and are only copied to process.env per-request —
-// reading them at module-eval time on a cold isolate yields `undefined`, which
-// is exactly the `cfConfigured:false` we saw. So we read the binding directly
-// (works in request scope on Workers) and fall back to process.env for local
-// dev (.env.local). Values are trimmed so a stray newline/space pasted into the
-// dashboard can't corrupt the Authorization header and silently 400/401.
 async function cfCreds(): Promise<{ id: string; token: string; source: string }> {
   let id = (process.env.CF_ACCOUNT_ID ?? '').trim()
   let token = (process.env.CF_AI_TOKEN ?? '').trim()
@@ -179,12 +235,8 @@ async function cfCreds(): Promise<{ id: string; token: string; source: string }>
   return { id, token, source }
 }
 
-// MyMemory raises its anonymous per-IP quota when a contact email is supplied.
 const TRANSLATE_EMAIL = (process.env.MYMEMORY_EMAIL ?? 'worth0307@gmail.com').trim()
 
-// The in-Worker Workers AI binding (env.AI), if present. This is the preferred
-// path: it needs NO account id and NO API token, so it can't fail with
-// cfConfigured:false the way the REST API does. Returns null off-Workers.
 type AiBinding = { run: (model: string, inputs: unknown) => Promise<unknown> }
 async function aiBinding(): Promise<AiBinding | null> {
   try {
@@ -196,10 +248,6 @@ async function aiBinding(): Promise<AiBinding | null> {
   }
 }
 
-// Detailed Workers AI call — returns the translation plus diagnostics (which
-// path was used, HTTP status, error snippet, whether it was budget-blocked) so
-// the ?debug endpoint can pinpoint why a title stayed English. `zh === text`
-// means "no translation".
 interface WaiResult {
   zh: string
   configured: boolean
@@ -216,16 +264,13 @@ async function translateViaWorkersAIDetailed(text: string): Promise<WaiResult> {
     return { zh: text, configured: false, error: 'no AI binding; CF_ACCOUNT_ID / CF_AI_TOKEN not set' }
   }
 
-  // Daily budget guard: once 70% of the free neuron allowance is reached, stop
-  // calling Workers AI and fall back to English — never spill into paid usage.
   if (!canSpend()) {
     recordBlocked()
     return { zh: text, configured: true, blocked: true, error: 'daily budget cap reached' }
   }
-  recordSpend() // count one translation attempt up-front (conservative)
+  recordSpend()
   const inputs = { text, source_lang: 'english', target_lang: 'chinese' }
 
-  // Preferred path: the in-Worker AI binding.
   if (ai) {
     try {
       const out = (await ai.run(CF_AI_MODEL, inputs)) as { translated_text?: string }
@@ -233,26 +278,20 @@ async function translateViaWorkersAIDetailed(text: string): Promise<WaiResult> {
       if (translated && translated.trim() !== text.trim()) {
         return { zh: translated, configured: true, via: 'binding', status: 200 }
       }
-      // Empty/identical → fall through to REST if creds exist, else give up.
       if (!(id && token)) {
         return { zh: text, configured: true, via: 'binding', status: 200, error: 'binding empty/identical result' }
       }
     } catch (e) {
       if (!(id && token)) return { zh: text, configured: true, via: 'binding', error: String(e) }
-      // else fall through to REST
     }
   }
 
-  // Fallback path: REST API (needs CF_ACCOUNT_ID + CF_AI_TOKEN).
   try {
     const res = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${id}/ai/run/${CF_AI_MODEL}`,
       {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(inputs),
         signal: AbortSignal.timeout(TRANSLATE_TIMEOUT),
       }
@@ -261,7 +300,7 @@ async function translateViaWorkersAIDetailed(text: string): Promise<WaiResult> {
       const body = await res.text().catch(() => '')
       return { zh: text, configured: true, via: 'rest', status: res.status, error: body.slice(0, 200) }
     }
-    const json: any = await res.json()
+    const json: { result?: { translated_text?: string } } = await res.json()
     const translated: string = json?.result?.translated_text ?? ''
     if (!translated || translated.trim() === text.trim()) {
       return { zh: text, configured: true, via: 'rest', status: res.status, error: 'empty or identical result' }
@@ -284,9 +323,7 @@ async function translateViaMyMemory(text: string): Promise<string> {
       signal: AbortSignal.timeout(TRANSLATE_TIMEOUT),
     })
     if (!res.ok) return text
-    const json = await res.json()
-    // MyMemory returns HTTP 200 even on quota/errors; the true status lives in
-    // the body. responseStatus !== 200 means quota exhausted / bad langpair etc.
+    const json: { responseStatus?: number; responseData?: { translatedText?: string } } = await res.json()
     if (json?.responseStatus && Number(json.responseStatus) !== 200) return text
     const translated: string = json?.responseData?.translatedText ?? ''
     if (!translated || translated.trim() === text.trim()) return text
@@ -297,8 +334,6 @@ async function translateViaMyMemory(text: string): Promise<string> {
   }
 }
 
-// Per-isolate memo so the same headline is never translated (or budget-spent)
-// twice across the 4h news-cache cycles. Only successful translations memoed.
 const translationMemo = new Map<string, { zh: string; exp: number }>()
 const MEMO_TTL = 24 * 60 * 60_000
 
@@ -307,10 +342,7 @@ async function translateOne(text: string): Promise<string> {
   if (memo && Date.now() < memo.exp) return memo.zh
 
   let zh = await translateViaWorkersAI(text)
-  if (zh === text) {
-    // Workers AI unconfigured, failed, or budget-capped → best-effort free fallback.
-    zh = await translateViaMyMemory(text)
-  }
+  if (zh === text) zh = await translateViaMyMemory(text)
   if (zh !== text) {
     if (translationMemo.size > 500) translationMemo.clear()
     translationMemo.set(text, { zh, exp: Date.now() + MEMO_TTL })
@@ -318,9 +350,6 @@ async function translateOne(text: string): Promise<string> {
   return zh
 }
 
-// Exposed for the ?debug=1 endpoint so translation can be verified live,
-// bypassing the news cache. Surfaces the Workers AI HTTP status / error so a
-// failing title can be diagnosed (bad token, wrong account id, model, quota…).
 export async function translateProbe(sample: string): Promise<Record<string, unknown>> {
   const { id, token, source } = await cfCreds()
   const aiBindingPresent = !!(await aiBinding())
@@ -330,13 +359,13 @@ export async function translateProbe(sample: string): Promise<Record<string, unk
   const result = viaCf !== sample ? viaCf : viaMyMemory
   return {
     cfConfigured: wai.configured,
-    aiBindingPresent, // true once the wrangler `ai` binding is deployed
-    cfCredSource: source || 'none', // process.env | cf-binding | none (REST fallback creds)
-    cfAccountIdLen: id.length, // length only — never expose the value
+    aiBindingPresent,
+    cfCredSource: source || 'none',
+    cfAccountIdLen: id.length,
     cfTokenLen: token.length,
     sample,
     workersAI: viaCf !== sample ? viaCf : '(no result)',
-    workersAIVia: wai.via ?? null, // binding | rest | null
+    workersAIVia: wai.via ?? null,
     workersAIStatus: wai.status ?? null,
     workersAIError: wai.error ?? null,
     workersAIBlocked: wai.blocked ?? false,
@@ -347,7 +376,6 @@ export async function translateProbe(sample: string): Promise<Record<string, unk
   }
 }
 
-// Fresh budget snapshot for the /api/news response (drives the on-screen badge).
 export { budgetSnapshot }
 
 async function translateAll(titles: string[]): Promise<string[]> {
@@ -355,24 +383,26 @@ async function translateAll(titles: string[]): Promise<string[]> {
   return results.map((r, i) => (r.status === 'fulfilled' ? r.value : titles[i]))
 }
 
-async function rawFetch(): Promise<{ status: number; body: string }> {
-  const res = await fetch(FEED_URL, {
-    headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      Accept: 'application/rss+xml, application/xml, text/xml, */*',
-    },
-    signal: AbortSignal.timeout(NEWS_TIMEOUT),
-  })
-  const body = await res.text()
-  return { status: res.status, body }
-}
-
-async function toEvents(items: NewsItem[]): Promise<MacroEvent[]> {
+export async function fetchGeopoliticalEvents(): Promise<MacroEvent[]> {
   const today = new Date().toISOString().slice(0, 10)
-  const candidates = dedup(items)
-    .filter((a) => a.title.length > 10)
-    .slice(0, 12)
+
+  // Fetch all feeds in parallel; a failing feed silently contributes 0 items.
+  const feedResults = await Promise.all(
+    FEEDS.map(async (feed) => {
+      const items = await fetchOneFeed(feed)
+      return { feed, items }
+    })
+  )
+
+  // Per-feed: drop very short titles, cap to maxItems, tag with asset hints.
+  const tagged: TaggedItem[] = []
+  for (const { feed, items } of feedResults) {
+    const capped = items.filter((a) => a.title.length > 10).slice(0, feed.maxItems)
+    for (const item of capped) tagged.push({ ...item, assetHints: feed.assetHints })
+  }
+
+  // Global dedup across all feeds, then cap total candidates.
+  const candidates = dedup(tagged).slice(0, 15)
 
   const translated = await translateAll(candidates.map((a) => a.title))
 
@@ -382,7 +412,7 @@ async function toEvents(items: NewsItem[]): Promise<MacroEvent[]> {
       const zhTitle = translated[idx] ?? rawTitle
       const displayTitle = zhTitle.length > 72 ? zhTitle.slice(0, 69) + '…' : zhTitle
       const impact = inferImpact(rawTitle)
-      const assets = inferAssets(rawTitle)
+      const assets = inferAssets(rawTitle, a.assetHints)
       return {
         date: a.date,
         title: displayTitle,
@@ -397,29 +427,34 @@ async function toEvents(items: NewsItem[]): Promise<MacroEvent[]> {
     .filter((e) => e.date <= today)
 }
 
-export async function fetchGeopoliticalEvents(): Promise<MacroEvent[]> {
-  const { status, body } = await rawFetch()
-  if (status !== 200) throw new Error(`OilPrice RSS HTTP ${status}: ${body.slice(0, 120)}`)
-  return toEvents(parseRss(body))
-}
-
-// Diagnostics for the ?debug=1 endpoint — never throws.
 export async function newsProbe(): Promise<Record<string, unknown>> {
-  try {
-    const { status, body } = await rawFetch()
-    const items = parseRss(body)
-    const events = await toEvents(items)
-    const translation = await translateProbe(items[0]?.title ?? 'Oil prices rise on supply concerns')
-    return {
-      url: FEED_URL,
-      httpStatus: status,
-      bodyStart: body.slice(0, 160),
-      itemCount: items.length,
-      eventCount: events.length,
-      translation,
-      sample: events.slice(0, 3).map((e) => ({ date: e.date, title: e.title, assets: e.assets })),
-    }
-  } catch (e) {
-    return { url: FEED_URL, fetchError: String(e) }
+  // Per-feed status for the ?debug=1 endpoint
+  const feedStatuses = await Promise.all(
+    FEEDS.map(async (feed) => {
+      try {
+        const items = await fetchOneFeed(feed)
+        return {
+          name: feed.name,
+          url: feed.url,
+          ok: items.length > 0,
+          itemCount: items.length,
+          sample: items[0]?.title ?? null,
+        }
+      } catch (e) {
+        return { name: feed.name, url: feed.url, ok: false, itemCount: 0, error: String(e) }
+      }
+    })
+  )
+
+  // Use first available title for translation probe
+  const firstTitle = feedStatuses.find((f) => f.sample)?.sample ?? 'Oil prices rise on supply concerns'
+  const translation = await translateProbe(firstTitle)
+
+  const events = await fetchGeopoliticalEvents()
+  return {
+    feeds: feedStatuses,
+    totalEvents: events.length,
+    translation,
+    sample: events.slice(0, 3).map((e) => ({ date: e.date, title: e.title, assets: e.assets })),
   }
 }
