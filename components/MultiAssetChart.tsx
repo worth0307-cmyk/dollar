@@ -143,6 +143,10 @@ export default function MultiAssetChart({
 }: Props) {
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [showEvents, setShowEvents] = useState(false)
+  // Pixel Y of the mouse within the plot wrapper, for the horizontal crosshair.
+  // Read from the native DOM event (not recharts state) — recharts 3 dropped the
+  // chartX/chartY fields its v2 mouse-move callback used to provide.
+  const [cursorY, setCursorY] = useState<number | null>(null)
 
   const toggle = (key: string) =>
     setHidden((prev) => {
@@ -244,7 +248,19 @@ export default function MultiAssetChart({
       </div>
 
       {/* Chart */}
-      <div className="flex-1 min-h-[240px] sm:min-h-[300px]">
+      <div
+        className="relative flex-1 min-h-[240px] sm:min-h-[300px]"
+        onMouseMove={(e) => setCursorY(e.clientY - e.currentTarget.getBoundingClientRect().top)}
+        onMouseLeave={() => setCursorY(null)}
+      >
+          {/* Horizontal crosshair — tracks the mouse vertically, complementing
+              recharts' built-in vertical cursor line for a full crosshair. */}
+          {cursorY != null && (
+            <div
+              className="pointer-events-none absolute left-0 right-0 z-10"
+              style={{ top: cursorY, borderTop: '1px dashed #4B5563' }}
+            />
+          )}
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 8, bottom: 4, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
