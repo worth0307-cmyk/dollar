@@ -241,6 +241,10 @@ function roundRobin<T>(groups: T[][], cap: number): T[] {
 // low-frequency feeds (Fed, Calculated Risk) from surfacing stale headlines.
 const MAX_AGE_DAYS = 180
 const GLOBAL_CAP = 120
+// Only translate the top (newest) TRANSLATE_CAP items — older items fall back to
+// their English title. Keeps cold-start translation count safely below the daily
+// AI budget cap (85% × 10,000 neurons ÷ 80/call ≈ 106 translations).
+const TRANSLATE_CAP = 100
 
 const NEWS_TIMEOUT = 10_000
 const TRANSLATE_TIMEOUT = 5_000
@@ -458,7 +462,7 @@ export async function fetchGeopoliticalEvents(): Promise<MacroEvent[]> {
   // stories, then cap the total list.
   const candidates = dedup(roundRobin(groups, GLOBAL_CAP * 2)).slice(0, GLOBAL_CAP)
 
-  const translated = await translateAll(candidates.map((a) => a.title))
+  const translated = await translateAll(candidates.slice(0, TRANSLATE_CAP).map((a) => a.title))
 
   return candidates
     .map((a, idx): MacroEvent => {

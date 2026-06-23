@@ -60,7 +60,7 @@ function CustomTooltip({ active, payload, label, nearEvent }: any) {
 
   const items = payload
     .map((p: any) => {
-      const baseKey = String(p.dataKey).replace(/__n$/, '')
+      const baseKey = String(p.dataKey)
       return {
         baseKey,
         color: p.color,
@@ -152,31 +152,9 @@ export default function MultiAssetChart({
     })
 
   const { chartData, movesByKey } = useMemo(() => {
-    const ranges = new Map<string, { min: number; max: number }>()
-    ASSETS.forEach((a) => {
-      let min = Infinity, max = -Infinity
-      data.forEach((row) => {
-        const v = row[a.key]
-        if (v != null) { if (v < min) min = v; if (v > max) max = v }
-      })
-      if (min !== Infinity) ranges.set(a.key, { min, max })
-    })
-
-    const normalize = (key: string, v: number) => {
-      const r = ranges.get(key)
-      if (!r) return 50
-      const span = r.max - r.min
-      return span > 0 ? ((v - r.min) / span) * 100 : 50
-    }
-
-    const chartData = data.map((row) => {
-      const out: Record<string, number> = { ...row }
-      ASSETS.forEach((a) => {
-        const v = row[a.key]
-        if (v != null) out[`${a.key}__n`] = normalize(a.key, v)
-      })
-      return out
-    })
+    // Use data directly — each row already contains `key` as (price − base) / base × 100
+    // and `key__p` as the raw price. No per-asset normalization needed.
+    const chartData = data
 
     // O(1) move lookup: key → Map<time, Move>
     const movesByKey = new Map<string, Map<number, Move>>()
@@ -283,11 +261,12 @@ export default function MultiAssetChart({
               />
               <YAxis
                 type="number"
-                domain={[-8, 108]}
-                tick={false}
+                domain={['auto', 'auto']}
+                tick={{ fill: '#475569', fontSize: 10 }}
                 tickLine={false}
                 axisLine={false}
-                width={8}
+                width={40}
+                tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`}
               />
               <Tooltip
                 content={(props: any) => (
@@ -296,6 +275,8 @@ export default function MultiAssetChart({
                 cursor={{ stroke: '#4B5563', strokeWidth: 1, fill: 'none' }}
                 wrapperStyle={{ outline: 'none', border: 'none' }}
               />
+
+              <ReferenceLine y={0} stroke="#374151" strokeWidth={1} strokeDasharray="4 2" />
 
               {showEvents && eventLines.map((e, i) => (
                 <ReferenceLine
@@ -317,7 +298,7 @@ export default function MultiAssetChart({
                   <Line
                     key={a.key}
                     type="monotone"
-                    dataKey={`${a.key}__n`}
+                    dataKey={a.key}
                     stroke={a.color}
                     strokeWidth={isAssetSelected ? 2.25 : 1.5}
                     strokeOpacity={isDimmed ? 0.1 : 1}

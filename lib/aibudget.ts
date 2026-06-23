@@ -8,15 +8,15 @@
 // All three knobs are env-configurable. If Cloudflare lowers the free
 // allowance, change only AI_DAILY_FREE_NEURONS and the 70% cap scales with it:
 //   AI_DAILY_FREE_NEURONS  free neurons/day      (default 10000)
-//   AI_SAFETY_FRACTION     cap as fraction       (default 0.7  → stop at 70%)
+//   AI_SAFETY_FRACTION     cap as fraction       (default 0.85 → stop at 85%)
 //   AI_NEURONS_PER_CALL    est. neurons / title  (default 80)
 //
 // On AI_NEURONS_PER_CALL: m2m100-1.2b on a short headline costs only a few
 // dozen neurons, so 80 is a safe-but-not-paranoid estimate. Setting it too
 // HIGH was the bug behind "titles revert to English" — the soft counter
 // believed the budget was spent and stopped translating long before the real
-// free allowance was anywhere near used. With 80, the 70% cap (7000 neurons)
-// allows ~87 fresh translations/day, far more than the ~30-40 unique daily
+// free allowance was anywhere near used. With 80, the 85% cap (8500 neurons)
+// allows ~106 fresh translations/day, far more than the ~30-40 unique daily
 // headlines, while the Free-plan backstop still guarantees zero billing.
 //
 // NOTE: this counter lives in worker memory (per-isolate), so it is a best
@@ -32,7 +32,7 @@ function num(v: string | undefined, fallback: number): number {
 }
 
 const DAILY_FREE_NEURONS = num(process.env.AI_DAILY_FREE_NEURONS, 10_000)
-const SAFETY_FRACTION = Math.min(1, num(process.env.AI_SAFETY_FRACTION, 0.7))
+const SAFETY_FRACTION = Math.min(1, num(process.env.AI_SAFETY_FRACTION, 0.85))
 const NEURONS_PER_CALL = num(process.env.AI_NEURONS_PER_CALL, 80) || 1
 const BUDGET_NEURONS = Math.floor(DAILY_FREE_NEURONS * SAFETY_FRACTION)
 
