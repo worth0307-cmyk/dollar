@@ -16,12 +16,18 @@ const TTL = 60 * 60_000  // 1 hour
 // merged there, so a slow feed never delays this response.
 // `autoReleases` are beat/miss events derived live from the calendar feed; they
 // take precedence over a manual RELEASES entry on the same date+title.
+// UPCOMING_EVENTS whose date has passed are also included automatically — this
+// way an event never disappears into a void when its date crosses "today".
 function buildPast(autoReleases: MacroEvent[] = []) {
   const today = new Date().toISOString().slice(0, 10)
   const seen = new Set<string>()
   const out: MacroEvent[] = []
+  // Expired upcoming events — coerce type to 'past' so the UI treats them correctly.
+  const expiredUpcoming = UPCOMING_EVENTS
+    .filter((e) => e.date <= today)
+    .map((e) => ({ ...e, type: 'past' as const }))
   // Auto-detected releases first so they win same-date/title de-dup over manual.
-  for (const e of [...autoReleases, ...PAST_EVENTS, ...RELEASE_EVENTS]) {
+  for (const e of [...autoReleases, ...PAST_EVENTS, ...expiredUpcoming, ...RELEASE_EVENTS]) {
     if (e.date > today) continue
     const key = `${e.date}::${e.title}`
     if (seen.has(key)) continue
