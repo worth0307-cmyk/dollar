@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useMemo } from 'react'
 import { ASSETS, ASSET_BY_KEY } from '@/lib/assets'
 import type { MacroEvent } from '@/lib/events'
 
@@ -27,11 +27,11 @@ function fmtEventDate(s: string) {
   return `${y}.${m}.${dd}`
 }
 
-function nearestEvent(ts: number, events: MacroEvent[]): MacroEvent | null {
+function nearestEvent(ts: number, events: { e: MacroEvent; t: number }[]): MacroEvent | null {
   let best: MacroEvent | null = null
   let bestDiff = Infinity
-  for (const e of events) {
-    const diffDays = (ts - new Date(e.date).getTime()) / 86400000
+  for (const { e, t } of events) {
+    const diffDays = (ts - t) / 86400000
     // Backward up to 30 days (post-event reaction), forward up to 3 days
     // (pre-event positioning / anticipation trading)
     if (diffDays > 30 || diffDays < -3) continue
@@ -72,7 +72,26 @@ export default function NotableMoves({
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [selectedMove])
 
-  const displayed = filter.size > 0 ? moves.filter((m) => filter.has(m.key)) : moves
+  // Pre-parse event dates once and memoize the derived rows so the
+  // O(moves × events) nearest-event scan doesn't re-run on every parent
+  // re-render (the dashboard clock used to re-render this every second).
+  const parsedEvents = useMemo(
+    () => events.map((e) => ({ e, t: new Date(e.date).getTime() })),
+    [events]
+  )
+  const assetCounts = useMemo(() => {
+    const c: Record<string, number> = {}
+    for (const m of moves) c[m.key] = (c[m.key] ?? 0) + 1
+    return c
+  }, [moves])
+  const displayed = useMemo(
+    () => (filter.size > 0 ? moves.filter((m) => filter.has(m.key)) : moves),
+    [moves, filter]
+  )
+  const rows = useMemo(
+    () => displayed.map((m) => ({ m, near: nearestEvent(m.time, parsedEvents) })),
+    [displayed, parsedEvents]
+  )
 
   if (!moves?.length) {
     return (
@@ -86,7 +105,7 @@ export default function NotableMoves({
       <div className="flex gap-1 flex-wrap mb-2">
         {ASSETS.map((a) => {
           const on = filter.has(a.key)
-          const count = moves.filter((m) => m.key === a.key).length
+          const count = assetCounts[a.key] ?? 0
           return (
             <button
               key={a.key}
@@ -113,17 +132,16 @@ export default function NotableMoves({
       <div className="flex-1 min-h-0 overflow-y-auto space-y-0.5">
       {displayed.length === 0 ? (
         <div className="text-sm text-slate-500 py-6 text-center">无匹配记录</div>
-      ) : displayed.map((m, i) => {
+      ) : rows.map(({ m, near }) => {
         const meta = ASSET_BY_KEY[m.key]
         const up = m.changePct >= 0
-        const near = nearestEvent(m.time, events)
         const rowKey = `${m.key}-${m.time}`
         const isSelected = selectedMove?.key === m.key && selectedMove?.time === m.time
         const color = meta?.color ?? '#888'
 
         return (
           <div
-            key={`${rowKey}-${i}`}
+            key={rowKey}
             ref={(el) => {
               if (el) rowRefs.current.set(rowKey, el)
               else rowRefs.current.delete(rowKey)
@@ -188,7 +206,7 @@ export default function NotableMoves({
             </div>
 
             {/* σ */}
-            <span className="font-mono text-sm text-slate-500 shrink-0">
+            <span className="hidden sm:inline font-mono text-sm text-slate-500 shrink-0">
               {Math.abs(m.z).toFixed(1)}σ
             </span>
           </div>

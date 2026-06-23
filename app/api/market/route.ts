@@ -28,7 +28,8 @@ export async function GET() {
     return { ...ASSETS[i], price: null, change: null, changePercent: null, error: true }
   })
 
-  // Only cache if at least one asset returned real data
-  if (data.some((a) => a.price !== null)) cacheSet(CACHE_KEY, data, TTL)
+  // Only cache if at least one asset returned a real, finite price. (`!= null`
+  // alone would also accept an undefined/NaN price slipping through.)
+  if (data.some((a) => Number.isFinite(a.price))) cacheSet(CACHE_KEY, data, TTL)
   return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store', 'X-Cache': 'MISS' } })
 }

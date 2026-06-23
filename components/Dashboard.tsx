@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import useSWR from 'swr'
 import MultiAssetChart from './MultiAssetChart'
 import PriceCard from './PriceCard'
@@ -44,6 +44,26 @@ function riskSentiment(market: MarketAsset[] | undefined) {
   return            { label: 'Mixed',    color: '#94A3B8', bg: 'rgba(148,163,184,0.10)' }
 }
 
+// Live clock — isolated into its own component so its 1-second tick re-renders
+// only itself, not the entire dashboard subtree (which would otherwise rebuild
+// every child, chart and event list every second).
+function Clock() {
+  const [now, setNow] = useState('')
+  useEffect(() => {
+    const tick = () => setNow(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [])
+  // suppressHydrationWarning: server renders '' while the client fills in the
+  // real time in useEffect; the mismatch is intentional.
+  return (
+    <div suppressHydrationWarning className="font-mono text-lg sm:text-xl text-gray-200 tracking-widest">
+      {now}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const [range, setRange]           = useState('3mo')
   const [anchor, setAnchor]         = useState<'period' | 'ytd'>('ytd')
@@ -51,7 +71,7 @@ export default function Dashboard() {
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null)
   const [selectedMove, setSelectedMove] = useState<{ key: string; time: number } | null>(null)
 
-  const { data: market, isLoading: marketLoading, error: marketError } = useSWR<MarketAsset[]>(
+  const { data: market, isLoading: marketLoading } = useSWR<MarketAsset[]>(
     '/api/market',
     fetcher,
     { refreshInterval: 30_000, onSuccess: () => setLastUpdated(new Date()) }
@@ -80,32 +100,37 @@ export default function Dashboard() {
   const correlation = history?.correlation ?? { keys: [], matrix: [] }
   const moves       = history?.moves       ?? []
   const stats       = history?.stats       ?? {}
-  const news        = newsData?.news        ?? []
-  // Merge news into the history list (deduped is unnecessary — disjoint sources)
-  const pastEvents  = [...(eventsData?.past ?? []), ...news]
-    .sort((a, b) => b.date.localeCompare(a.date))
-  const allEvents   = [...pastEvents, ...(eventsData?.upcoming ?? [])]
+  // Merge news into the history list (dedup unnecessary — disjoint sources).
+  // Memoized so the merge+sort doesn't mint new array identities every render
+  // and churn the children that receive them.
+  const pastEvents = useMemo(
+    () =>
+      [...(eventsData?.past ?? []), ...(newsData?.news ?? [])].sort((a, b) =>
+        b.date.localeCompare(a.date)
+      ),
+    [eventsData?.past, newsData?.news]
+  )
+  const allEvents = useMemo(
+    () => [...pastEvents, ...(eventsData?.upcoming ?? [])],
+    [pastEvents, eventsData?.upcoming]
+  )
 
-  const toggleAsset = (key: string) =>
-    setSelectedAsset((prev) => (prev === key ? null : key))
+  const toggleAsset = useCallback(
+    (key: string) => setSelectedAsset((prev) => (prev === key ? null : key)),
+    []
+  )
 
-  const toggleMove = (m: { key: string; time: number }) =>
-    setSelectedMove((prev) =>
-      prev?.key === m.key && prev?.time === m.time ? null : m
-    )
-
-  const [now, setNow] = useState('')
-  useEffect(() => {
-    const tick = () =>
-      setNow(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [])
+  const toggleMove = useCallback(
+    (m: { key: string; time: number }) =>
+      setSelectedMove((prev) =>
+        prev?.key === m.key && prev?.time === m.time ? null : m
+      ),
+    []
+  )
 
   const risk = riskSentiment(market)
   const avgChange =
-    Array.isArray(market)
+    Array.isArray(market) && market.length > 0
       ? market.reduce((s, a) => s + (a.changePercent ?? 0), 0) / market.length
       : null
 
@@ -161,7 +186,7 @@ export default function Dashboard() {
           {/* Clock — suppressHydrationWarning because server renders '' while client
               sets the real time in useEffect; the mismatch is intentional. */}
           <div className="text-right">
-            <div suppressHydrationWarning className="font-mono text-lg sm:text-xl text-gray-200 tracking-widest">{now}</div>
+            <Clock />
             {lastUpdated && (
               <div className="text-[10px] text-gray-500 font-mono">
                 updated {lastUpdated.toLocaleTimeString('zh-CN', { hour12: false })}

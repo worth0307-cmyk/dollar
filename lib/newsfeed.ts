@@ -96,11 +96,19 @@ const HIGH_RE =
 
 function inferAssets(title: string, hints: string[] = []): string[] {
   const found = new Set<string>(hints)
+  let matched = false
   for (const { re, assets } of ASSET_SIGNALS) {
-    if (re.test(title)) assets.forEach((a) => found.add(a))
+    if (re.test(title)) {
+      assets.forEach((a) => found.add(a))
+      matched = true
+    }
   }
+  // No keyword signal matched but the headline is clearly geopolitical → default
+  // to the risk-sensitive pair (oil + gold). Tracking `matched` directly fixes
+  // the old `found.size === hints.length` test, which misfired whenever a signal
+  // only re-added an asset already present in the feed's hints.
   if (
-    found.size === hints.length &&
+    !matched &&
     /conflict|military|troops|forces|war|tension|israel|iran|russia|ukraine/i.test(title)
   ) {
     found.add('brent')
@@ -397,7 +405,12 @@ async function translateOne(text: string): Promise<string> {
   let zh = await translateViaWorkersAI(text)
   if (zh === text) zh = await translateViaMyMemory(text)
   if (zh !== text) {
-    if (translationMemo.size > 500) translationMemo.clear()
+    // Evict the oldest entry (Map preserves insertion order) instead of wiping
+    // the whole memo, which would cause a translation re-spend burst at the cap.
+    if (translationMemo.size >= 500) {
+      const oldest = translationMemo.keys().next().value
+      if (oldest !== undefined) translationMemo.delete(oldest)
+    }
     translationMemo.set(text, { zh, exp: Date.now() + MEMO_TTL })
   }
   return zh

@@ -121,7 +121,8 @@ export function periodStats(
       changePct: first > 0 ? ((last - first) / first) * 100 : null,
       high: Math.max(...prices),
       low: Math.min(...prices),
-      vol: sd * Math.sqrt(252) * 100,
+      // No daily returns (single data point) → volatility is undefined, not 0.
+      vol: r.length ? sd * Math.sqrt(252) * 100 : null,
     }
   })
   return out

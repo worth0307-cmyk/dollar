@@ -284,7 +284,7 @@ export default function MacroEvents({ past, upcoming, aiUsage }: Props) {
                   key={f.key}
                   onClick={() => toggleFilter(f.key)}
                   title={`筛选${f.label}（${count}）`}
-                  className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors ${
+                  className={`flex items-center gap-1 text-[11px] px-2 py-1 min-h-[36px] rounded-md border transition-colors ${
                     on ? f.active : 'border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-600'
                   }`}
                 >
@@ -302,7 +302,7 @@ export default function MacroEvents({ past, upcoming, aiUsage }: Props) {
                 key={a.key}
                 onClick={() => toggleAssetFilter(a.key)}
                 title={`筛选 ${a.symbol}（${count}）`}
-                className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors ${
+                className={`flex items-center gap-1 text-[11px] px-2 py-1 min-h-[36px] rounded-md border transition-colors ${
                   on ? 'border-transparent text-gray-900 font-medium' : 'border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-600'
                 }`}
                 style={on ? { backgroundColor: a.color, borderColor: a.color } : {}}
@@ -327,8 +327,8 @@ export default function MacroEvents({ past, upcoming, aiUsage }: Props) {
             {filters.size > 0 || assetFilters.size > 0 ? '无匹配的筛选结果' : '暂无数据'}
           </div>
         ) : (
-          events.map((e, i) => (
-            <EventCard key={`${e.date}-${i}`} event={e} isUpcoming={tab === 'upcoming'} />
+          events.map((e) => (
+            <EventCard key={`${e.date}::${e.title}`} event={e} isUpcoming={tab === 'upcoming'} />
           ))
         )}
       </div>

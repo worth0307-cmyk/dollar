@@ -154,7 +154,12 @@ export async function fetchYahooHistory(key: string, range: string, intervalOver
 export async function fetchQuote(symbol: string) {
   const result = await chart(symbol, { interval: '1d', range: '1d' })
   const meta = result.meta
-  const price: number = meta.regularMarketPrice
+  const price: number = meta?.regularMarketPrice
+  // Throw on missing price so the caller's Promise.allSettled records a
+  // rejection (→ error card) instead of silently caching price:undefined.
+  if (!Number.isFinite(price)) {
+    throw new Error(`Yahoo ${symbol}: missing regularMarketPrice`)
+  }
   const prev: number = meta.previousClose ?? meta.chartPreviousClose ?? price
   return {
     symbol,
@@ -167,8 +172,15 @@ export async function fetchQuote(symbol: string) {
 export async function fetchHistory(symbol: string, range: string, intervalOverride?: string) {
   const interval = intervalOverride ?? INTERVAL[range] ?? '1d'
   const result = await chart(symbol, { interval, range })
+  // Halted/invalid instruments can return an empty indicators block; guard the
+  // deep access so it throws a clear error (caught by allSettled) rather than a
+  // raw "cannot read 'close' of undefined" TypeError.
+  const quote = result?.indicators?.quote?.[0]
+  if (!result?.timestamp || !quote?.close) {
+    throw new Error(`Yahoo ${symbol}: missing timestamp/close data`)
+  }
   return {
     timestamps: result.timestamp as number[],
-    closes: result.indicators.quote[0].close as (number | null)[],
+    closes: quote.close as (number | null)[],
   }
 }

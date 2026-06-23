@@ -56,18 +56,18 @@ export default function PriceCard({
       }
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-lg leading-none" style={{ filter: `drop-shadow(0 0 4px ${color})` }}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-lg leading-none shrink-0" style={{ filter: `drop-shadow(0 0 4px ${color})` }}>
             {meta?.icon}
           </span>
-          <div>
+          <div className="min-w-0">
             <div className="text-[10px] text-gray-500 font-mono tracking-wide">{asset.symbol}</div>
-            <div className="text-sm font-medium text-gray-200">{asset.name}</div>
+            <div className="text-sm font-medium text-gray-200 truncate">{asset.name}</div>
           </div>
         </div>
         <div
-          className="text-xs px-2 py-0.5 rounded-full font-mono font-medium tracking-wide"
+          className="text-xs px-2 py-0.5 rounded-full font-mono font-medium tracking-wide shrink-0"
           style={{
             backgroundColor: `${color}18`,
             color,

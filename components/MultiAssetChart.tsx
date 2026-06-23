@@ -263,7 +263,7 @@ export default function MultiAssetChart({
   return (
     <div className="chart-glow flex flex-col h-full">
       {/* Anchor toggle + event lines toggle */}
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
         <span className="text-[10px] text-gray-500">基准：</span>
         {(['period', 'ytd'] as const).map((a) => (
           <button
@@ -418,7 +418,7 @@ export default function MultiAssetChart({
                 toggle(a.key)
                 onSelectKey?.(a.key)
               }}
-              className={`flex items-center gap-2 text-xs transition-all ${
+              className={`flex items-center gap-2 text-xs transition-all min-h-[36px] py-1 ${
                 isHidden ? 'opacity-30' : isDimmed ? 'opacity-40' : 'opacity-100'
               }`}
               title={isHidden ? '点击显示' : '点击隐藏 / 高亮'}
