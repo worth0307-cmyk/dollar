@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   LineChart,
   Line,
@@ -60,7 +60,7 @@ function CustomTooltip({ active, payload, label, nearEvent }: any) {
 
   const items = payload
     .map((p: any) => {
-      const baseKey = String(p.dataKey)
+      const baseKey = String(p.dataKey).replace(/__n$/, '')
       return {
         baseKey,
         color: p.color,
@@ -143,10 +143,39 @@ export default function MultiAssetChart({
 }: Props) {
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [showEvents, setShowEvents] = useState(false)
-  // Pixel Y of the mouse within the plot wrapper, for the horizontal crosshair.
-  // Read from the native DOM event (not recharts state) — recharts 3 dropped the
-  // chartX/chartY fields its v2 mouse-move callback used to provide.
-  const [cursorY, setCursorY] = useState<number | null>(null)
+
+  // Horizontal crosshair. Driven straight through the DOM (refs + rAF) rather
+  // than React state, so mouse-move never re-renders the chart — that was the
+  // source of the lag. recharts 3 dropped chartX/chartY from its callback, so
+  // we read the pixel Y from the native event relative to the plot wrapper.
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const lineRef = useRef<HTMLDivElement>(null)
+  const rafRef = useRef<number | null>(null)
+  const lastY = useRef(0)
+
+  const onPlotMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const wrap = wrapRef.current
+    if (!wrap) return
+    lastY.current = e.clientY - wrap.getBoundingClientRect().top
+    if (rafRef.current == null) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null
+        const line = lineRef.current
+        if (line) {
+          line.style.transform = `translateY(${lastY.current}px)`
+          line.style.opacity = '1'
+        }
+      })
+    }
+  }
+
+  const onPlotLeave = () => {
+    if (lineRef.current) lineRef.current.style.opacity = '0'
+  }
+
+  useEffect(() => () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
+  }, [])
 
   const toggle = (key: string) =>
     setHidden((prev) => {
@@ -156,9 +185,31 @@ export default function MultiAssetChart({
     })
 
   const { chartData, movesByKey } = useMemo(() => {
-    // Use data directly — each row already contains `key` as (price − base) / base × 100
-    // and `key__p` as the raw price. No per-asset normalization needed.
-    const chartData = data
+    const ranges = new Map<string, { min: number; max: number }>()
+    ASSETS.forEach((a) => {
+      let min = Infinity, max = -Infinity
+      data.forEach((row) => {
+        const v = row[a.key]
+        if (v != null) { if (v < min) min = v; if (v > max) max = v }
+      })
+      if (min !== Infinity) ranges.set(a.key, { min, max })
+    })
+
+    const normalize = (key: string, v: number) => {
+      const r = ranges.get(key)
+      if (!r) return 50
+      const span = r.max - r.min
+      return span > 0 ? ((v - r.min) / span) * 100 : 50
+    }
+
+    const chartData = data.map((row) => {
+      const out: Record<string, number> = { ...row }
+      ASSETS.forEach((a) => {
+        const v = row[a.key]
+        if (v != null) out[`${a.key}__n`] = normalize(a.key, v)
+      })
+      return out
+    })
 
     // O(1) move lookup: key → Map<time, Move>
     const movesByKey = new Map<string, Map<number, Move>>()
@@ -249,18 +300,18 @@ export default function MultiAssetChart({
 
       {/* Chart */}
       <div
+        ref={wrapRef}
+        onMouseMove={onPlotMove}
+        onMouseLeave={onPlotLeave}
         className="relative flex-1 min-h-[240px] sm:min-h-[300px]"
-        onMouseMove={(e) => setCursorY(e.clientY - e.currentTarget.getBoundingClientRect().top)}
-        onMouseLeave={() => setCursorY(null)}
       >
-          {/* Horizontal crosshair — tracks the mouse vertically, complementing
-              recharts' built-in vertical cursor line for a full crosshair. */}
-          {cursorY != null && (
-            <div
-              className="pointer-events-none absolute left-0 right-0 z-10"
-              style={{ top: cursorY, borderTop: '1px dashed #4B5563' }}
-            />
-          )}
+          {/* Horizontal crosshair — complements recharts' vertical cursor line.
+              Positioned via transform on every animation frame (see onPlotMove). */}
+          <div
+            ref={lineRef}
+            className="pointer-events-none absolute left-0 right-0 top-0 z-10"
+            style={{ borderTop: '1px dashed #4B5563', opacity: 0, willChange: 'transform' }}
+          />
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 8, bottom: 4, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
@@ -277,12 +328,11 @@ export default function MultiAssetChart({
               />
               <YAxis
                 type="number"
-                domain={['auto', 'auto']}
-                tick={{ fill: '#475569', fontSize: 10 }}
+                domain={[-8, 108]}
+                tick={false}
                 tickLine={false}
                 axisLine={false}
-                width={40}
-                tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`}
+                width={8}
               />
               <Tooltip
                 content={(props: any) => (
@@ -291,8 +341,6 @@ export default function MultiAssetChart({
                 cursor={{ stroke: '#4B5563', strokeWidth: 1, fill: 'none' }}
                 wrapperStyle={{ outline: 'none', border: 'none' }}
               />
-
-              <ReferenceLine y={0} stroke="#374151" strokeWidth={1} strokeDasharray="4 2" />
 
               {showEvents && eventLines.map((e, i) => (
                 <ReferenceLine
@@ -314,7 +362,7 @@ export default function MultiAssetChart({
                   <Line
                     key={a.key}
                     type="monotone"
-                    dataKey={a.key}
+                    dataKey={`${a.key}__n`}
                     stroke={a.color}
                     strokeWidth={isAssetSelected ? 2.25 : 1.5}
                     strokeOpacity={isDimmed ? 0.1 : 1}
