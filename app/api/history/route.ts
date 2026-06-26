@@ -144,11 +144,24 @@ export async function GET(request: Request) {
   const filtered = yearMoves.filter((m) => m.time >= displayStart)
   const moves = topN != null ? filtered.slice(0, topN) : filtered
 
+  // Derive anchor-correct changePct from the last non-null series value per key.
+  // periodStats() always uses period-start as baseline; series[] already has the
+  // anchor-adjusted % baked in (base = period-start or YTD Jan 1 depending on anchor).
+  const rawStats = periodStats(KEYS, maps)
+  KEYS.forEach((key, i) => {
+    let last: number | null = null
+    for (let j = series.length - 1; j >= 0; j--) {
+      const v = series[j][key]
+      if (v != null) { last = v as number; break }
+    }
+    if (last != null) rawStats[key] = { ...rawStats[key], changePct: last }
+  })
+
   const payload: HistoryPayload = {
     series,
     correlation: { keys: KEYS, matrix: correlationMatrix(KEYS, maps) },
     moves,
-    stats: periodStats(KEYS, maps),
+    stats: rawStats,
   }
 
   if (series.length) cacheSet(cacheKey, payload, TTL)
