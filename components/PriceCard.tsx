@@ -1,5 +1,7 @@
 'use client'
 
+import { ASSET_BY_KEY } from '@/lib/assets'
+
 interface Asset {
   key: string
   name: string
@@ -10,73 +12,66 @@ interface Asset {
   error?: boolean
 }
 
-const FORMAT: Record<string, Intl.NumberFormatOptions> = {
-  dxy: { minimumFractionDigits: 2, maximumFractionDigits: 2 },
-  btc: { minimumFractionDigits: 0, maximumFractionDigits: 0 },
-  brent: { minimumFractionDigits: 2, maximumFractionDigits: 2 },
-  gold: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
-  sp500: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+function fmt(value: number, decimals: number) {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(value)
 }
 
-const PREFIX: Record<string, string> = {
-  dxy: '',
-  btc: '$',
-  brent: '$',
-  gold: '$',
-  sp500: '',
-}
-
-const SUFFIX: Record<string, string> = {
-  brent: '/bbl',
-  gold: '/oz',
-  btc: '',
-  dxy: '',
-  sp500: '',
-}
-
-const COLORS: Record<string, string> = {
-  dxy: '#60A5FA',
-  btc: '#F59E0B',
-  brent: '#EF4444',
-  gold: '#FCD34D',
-  sp500: '#34D399',
-}
-
-const ICONS: Record<string, string> = {
-  dxy: '$',
-  btc: '₿',
-  brent: '🛢',
-  gold: '◈',
-  sp500: '📈',
-}
-
-function fmt(value: number, key: string) {
-  const opts = FORMAT[key] ?? { maximumFractionDigits: 2 }
-  return new Intl.NumberFormat('en-US', opts).format(value)
-}
-
-export default function PriceCard({ asset }: { asset: Asset }) {
+export default function PriceCard({
+  asset,
+  selected,
+  onSelect,
+  periodChg,
+  anchorLabel,
+}: {
+  asset: Asset
+  selected?: boolean
+  onSelect?: () => void
+  periodChg?: number | null
+  anchorLabel?: string
+}) {
+  const meta = ASSET_BY_KEY[asset.key]
+  const color = meta?.color ?? '#9CA3AF'
   const up = (asset.changePercent ?? 0) >= 0
-  const color = COLORS[asset.key]
 
   return (
     <div
-      className="rounded-xl bg-gray-900 border border-gray-800 p-4 flex flex-col gap-2 hover:border-gray-600 transition-colors"
-      style={{ borderTopColor: color, borderTopWidth: 2 }}
+      onClick={onSelect}
+      className="card-glow rounded-xl bg-gray-900/80 border border-gray-700/60 p-4 flex flex-col gap-2 backdrop-blur-sm transition-all h-full"
+      style={
+        {
+          borderTopColor: color,
+          borderTopWidth: 2,
+          '--glow': `${color}30`,
+          cursor: onSelect ? 'pointer' : 'default',
+          ...(selected
+            ? {
+                boxShadow: `0 0 0 2px ${color}60, 0 0 24px ${color}30`,
+                backgroundColor: `color-mix(in srgb, ${color} 8%, #111827)`,
+              }
+            : {}),
+        } as React.CSSProperties
+      }
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">{ICONS[asset.key]}</span>
-          <div>
-            <div className="text-xs text-gray-400">{asset.symbol}</div>
-            <div className="text-sm font-medium text-gray-200">{asset.name}</div>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-lg leading-none shrink-0" style={{ filter: `drop-shadow(0 0 4px ${color})` }}>
+            {meta?.icon}
+          </span>
+          <div className="min-w-0">
+            <div className="text-[10px] text-gray-500 font-mono tracking-wide">{asset.symbol}</div>
+            <div className="text-sm font-medium text-gray-200 truncate">{asset.name}</div>
           </div>
         </div>
         <div
-          className="text-xs px-2 py-0.5 rounded-full font-mono"
+          className="text-xs px-2 py-0.5 rounded-full font-mono font-medium tracking-wide shrink-0"
           style={{
-            backgroundColor: `${color}20`,
+            backgroundColor: `${color}18`,
             color,
+            boxShadow: `0 0 8px ${color}30`,
           }}
         >
           {asset.changePercent != null
@@ -85,23 +80,43 @@ export default function PriceCard({ asset }: { asset: Asset }) {
         </div>
       </div>
 
+      {/* Price */}
       {asset.price != null ? (
         <div className="mt-1">
-          <span className="text-2xl font-bold text-white font-mono">
-            {PREFIX[asset.key]}
-            {fmt(asset.price, asset.key)}
+          <span
+            className="text-xl sm:text-2xl font-bold font-mono"
+            style={{
+              color: '#f1f5f9',
+              textShadow: `0 0 12px ${color}30`,
+            }}
+          >
+            {meta?.prefix}
+            {fmt(asset.price, meta?.decimals ?? 2)}
           </span>
-          <span className="text-xs text-gray-500 ml-1">{SUFFIX[asset.key]}</span>
+          <span className="text-xs text-gray-600 ml-1">{meta?.suffix}</span>
         </div>
       ) : (
-        <div className="text-2xl text-gray-600">—</div>
+        <div className="text-2xl text-gray-700">—</div>
       )}
 
-      {asset.change != null && (
-        <div className={`text-xs font-mono ${up ? 'text-emerald-400' : 'text-red-400'}`}>
-          {up ? '▲' : '▼'} {Math.abs(asset.change).toFixed(2)}
-        </div>
-      )}
+      {/* Change row: 24h absolute + period cumulative — mt-auto pins to card bottom */}
+      <div className="flex items-center justify-between gap-2 mt-auto">
+        {asset.change != null && (
+          <div className={`text-xs font-mono ${up ? 'text-emerald-400' : 'text-red-400'}`}>
+            <span style={{ textShadow: up ? '0 0 8px #34D39950' : '0 0 8px #EF444450' }}>
+              {up ? '▲' : '▼'} {Math.abs(asset.change).toFixed(2)}
+            </span>
+          </div>
+        )}
+        {periodChg != null && (
+          <div className="text-[10px] font-mono text-gray-500 ml-auto">
+            <span className="text-gray-600">{anchorLabel ?? '区间'} </span>
+            <span style={{ color: periodChg >= 0 ? '#34D399' : '#EF4444' }}>
+              {periodChg >= 0 ? '+' : ''}{periodChg.toFixed(2)}%
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

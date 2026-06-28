@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
+  "name": "market",
+  "compatibility_date": "2025-06-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  // Workers AI binding — runs the translation model in-Worker, no account id or
+  // API token needed. Free-tier neuron allowance applies (guarded in aibudget.ts).
+  "ai": {
+    "binding": "AI"
+  }
+}
