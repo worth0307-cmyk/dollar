@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   ReferenceLine,
+  type MouseHandlerDataParam,
 } from 'recharts'
 import { ASSETS, ASSET_BY_KEY } from '@/lib/assets'
 import type { AssetStat } from '@/lib/analytics'
@@ -177,6 +178,46 @@ export default function MultiAssetChart({
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
   }, [])
 
+  // Legend percentages follow the hovered date. Like the crosshair, this is
+  // driven straight through the DOM (refs + rAF) so moving the cursor updates
+  // the numbers without re-rendering the chart. When not hovering, the spans
+  // fall back to their JSX default (the period-end cumulative %).
+  const legendPctRefs = useRef<Map<string, HTMLSpanElement>>(new Map())
+  const hoverTimeRef = useRef<number | null>(null)
+  const legendRafRef = useRef<number | null>(null)
+
+  const applyLegend = () => {
+    legendRafRef.current = null
+    const t = hoverTimeRef.current
+    const row = t != null ? byTime.get(t) : undefined
+    ASSETS.forEach((a) => {
+      const span = legendPctRefs.current.get(a.key)
+      if (!span) return
+      const v = row ? row[a.key] : stats?.[a.key]?.changePct
+      if (v == null) { span.textContent = ''; return }
+      span.textContent = `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
+      span.style.color = v >= 0 ? '#34D399' : '#EF4444'
+    })
+  }
+
+  const onChartMove = (s: MouseHandlerDataParam) => {
+    const t = s?.isTooltipActive ? Number(s.activeLabel) : NaN
+    const next = Number.isFinite(t) ? t : null
+    if (next === hoverTimeRef.current) return
+    hoverTimeRef.current = next
+    if (legendRafRef.current == null) legendRafRef.current = requestAnimationFrame(applyLegend)
+  }
+
+  const onChartLeave = () => {
+    if (hoverTimeRef.current == null) return
+    hoverTimeRef.current = null
+    if (legendRafRef.current == null) legendRafRef.current = requestAnimationFrame(applyLegend)
+  }
+
+  useEffect(() => () => {
+    if (legendRafRef.current != null) cancelAnimationFrame(legendRafRef.current)
+  }, [])
+
   const toggle = (key: string) =>
     setHidden((prev) => {
       const next = new Set(prev)
@@ -184,7 +225,7 @@ export default function MultiAssetChart({
       return next
     })
 
-  const { chartData, movesByKey } = useMemo(() => {
+  const { chartData, movesByKey, byTime } = useMemo(() => {
     const ranges = new Map<string, { min: number; max: number }>()
     ASSETS.forEach((a) => {
       let min = Infinity, max = -Infinity
@@ -218,7 +259,12 @@ export default function MultiAssetChart({
       movesByKey.get(m.key)!.set(m.time, m)
     })
 
-    return { chartData, movesByKey }
+    // O(1) row lookup by timestamp — lets the legend show the % at the
+    // hovered date (recharts' onMouseMove gives us activeLabel = time).
+    const byTime = new Map<number, Record<string, number>>()
+    chartData.forEach((row) => byTime.set(row.time, row))
+
+    return { chartData, movesByKey, byTime }
   }, [data, moves])
 
   // Non-news, high/medium impact past events within the chart's time range.
@@ -313,7 +359,12 @@ export default function MultiAssetChart({
             style={{ borderTop: '1px dashed #4B5563', opacity: 0, willChange: 'transform' }}
           />
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 10, right: 8, bottom: 4, left: 0 }}>
+            <LineChart
+              data={chartData}
+              margin={{ top: 10, right: 8, bottom: 4, left: 0 }}
+              onMouseMove={onChartMove}
+              onMouseLeave={onChartLeave}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
               <XAxis
                 dataKey="time"
@@ -431,15 +482,16 @@ export default function MultiAssetChart({
                 }}
               />
               <span className={isSelected ? 'text-white font-medium' : 'text-gray-200'}>{a.symbol}</span>
-              {chg != null && (
-                <span
-                  className="font-mono text-[11px]"
-                  style={{ color: chg >= 0 ? '#34D399' : '#EF4444' }}
-                >
-                  {chg >= 0 ? '+' : ''}
-                  {chg.toFixed(1)}%
-                </span>
-              )}
+              <span
+                ref={(el) => {
+                  if (el) legendPctRefs.current.set(a.key, el)
+                  else legendPctRefs.current.delete(a.key)
+                }}
+                className="font-mono text-[11px]"
+                style={{ color: chg != null && chg >= 0 ? '#34D399' : '#EF4444' }}
+              >
+                {chg != null ? `${chg >= 0 ? '+' : ''}${chg.toFixed(1)}%` : ''}
+              </span>
             </button>
           )
         })}
