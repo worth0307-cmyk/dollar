@@ -182,14 +182,18 @@ export default function MultiAssetChart({
   // driven straight through the DOM (refs + rAF) so moving the cursor updates
   // the numbers without re-rendering the chart. When not hovering, the spans
   // fall back to their JSX default (the period-end cumulative %).
+  //
+  // recharts gives us activeTooltipIndex (the chartData row index, as a string)
+  // — NOT a usable activeLabel: on a continuous time axis activeLabel is taken
+  // from the sparse axis ticks, so it never matches a data point's timestamp.
+  // We index chartData directly by that row index instead.
   const legendPctRefs = useRef<Map<string, HTMLSpanElement>>(new Map())
-  const hoverTimeRef = useRef<number | null>(null)
+  const hoverRowRef = useRef<Record<string, number> | null>(null)
   const legendRafRef = useRef<number | null>(null)
 
   const applyLegend = () => {
     legendRafRef.current = null
-    const t = hoverTimeRef.current
-    const row = t != null ? byTime.get(t) : undefined
+    const row = hoverRowRef.current
     ASSETS.forEach((a) => {
       const span = legendPctRefs.current.get(a.key)
       if (!span) return
@@ -201,16 +205,21 @@ export default function MultiAssetChart({
   }
 
   const onChartMove = (s: MouseHandlerDataParam) => {
-    const t = s?.isTooltipActive ? Number(s.activeLabel) : NaN
-    const next = Number.isFinite(t) ? t : null
-    if (next === hoverTimeRef.current) return
-    hoverTimeRef.current = next
+    const idx = Number(s?.activeTooltipIndex)
+    const row =
+      s?.isTooltipActive && Number.isInteger(idx) && idx >= 0 && idx < chartData.length
+        ? chartData[idx]
+        : null
+    const nextTime = row ? row.time : null
+    const curTime = hoverRowRef.current ? hoverRowRef.current.time : null
+    if (nextTime === curTime) return
+    hoverRowRef.current = row
     if (legendRafRef.current == null) legendRafRef.current = requestAnimationFrame(applyLegend)
   }
 
   const onChartLeave = () => {
-    if (hoverTimeRef.current == null) return
-    hoverTimeRef.current = null
+    if (hoverRowRef.current == null) return
+    hoverRowRef.current = null
     if (legendRafRef.current == null) legendRafRef.current = requestAnimationFrame(applyLegend)
   }
 
@@ -225,7 +234,7 @@ export default function MultiAssetChart({
       return next
     })
 
-  const { chartData, movesByKey, byTime } = useMemo(() => {
+  const { chartData, movesByKey } = useMemo(() => {
     const ranges = new Map<string, { min: number; max: number }>()
     ASSETS.forEach((a) => {
       let min = Infinity, max = -Infinity
@@ -259,12 +268,7 @@ export default function MultiAssetChart({
       movesByKey.get(m.key)!.set(m.time, m)
     })
 
-    // O(1) row lookup by timestamp — lets the legend show the % at the
-    // hovered date (recharts' onMouseMove gives us activeLabel = time).
-    const byTime = new Map<number, Record<string, number>>()
-    chartData.forEach((row) => byTime.set(row.time, row))
-
-    return { chartData, movesByKey, byTime }
+    return { chartData, movesByKey }
   }, [data, moves])
 
   // Non-news, high/medium impact past events within the chart's time range.
