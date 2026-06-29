@@ -5,7 +5,7 @@ import { ASSET_BY_KEY } from '@/lib/assets'
 interface Props {
   keys: string[]
   matrix: (number | null)[][]
-  selectedKey?: string | null
+  selectedKeys?: Set<string>
   onSelectKey?: (key: string) => void
 }
 
@@ -16,7 +16,7 @@ function cellColor(v: number | null): string {
   return `rgba(239, 68, 68, ${0.1 + 0.6 * mag})`
 }
 
-export default function CorrelationMatrix({ keys, matrix, selectedKey, onSelectKey }: Props) {
+export default function CorrelationMatrix({ keys, matrix, selectedKeys, onSelectKey }: Props) {
   if (!keys?.length || !matrix?.length) {
     return (
       <div className="h-full flex items-center justify-center text-gray-600 text-sm">
@@ -34,8 +34,8 @@ export default function CorrelationMatrix({ keys, matrix, selectedKey, onSelectK
         {/* Header row */}
         <div />
         {keys.map((k) => {
-          const isSelected = selectedKey === k
-          const isDimmed = selectedKey != null && !isSelected
+          const isSelected = !!selectedKeys?.has(k)
+          const isDimmed = (selectedKeys?.size ?? 0) > 0 && !isSelected
           return (
             <div key={`col-${k}`} className="flex justify-center pb-1">
               <button
@@ -64,7 +64,7 @@ export default function CorrelationMatrix({ keys, matrix, selectedKey, onSelectK
             rowKey={rowKey}
             values={matrix[i]}
             keys={keys}
-            selectedKey={selectedKey}
+            selectedKeys={selectedKeys}
             onSelectKey={onSelectKey}
           />
         ))}
@@ -94,17 +94,17 @@ function Row({
   rowKey,
   values,
   keys,
-  selectedKey,
+  selectedKeys,
   onSelectKey,
 }: {
   rowKey: string
   values: (number | null)[]
   keys: string[]
-  selectedKey?: string | null
+  selectedKeys?: Set<string>
   onSelectKey?: (key: string) => void
 }) {
-  const isRowSelected = selectedKey === rowKey
-  const isRowDimmed = selectedKey != null && !isRowSelected
+  const isRowSelected = !!selectedKeys?.has(rowKey)
+  const isRowDimmed = (selectedKeys?.size ?? 0) > 0 && !isRowSelected
 
   return (
     <>
@@ -128,8 +128,8 @@ function Row({
       {keys.map((colKey, j) => {
         const v = values?.[j] ?? null
         const diag = colKey === rowKey
-        const isColSelected = selectedKey === colKey
-        const isHighlighted = selectedKey == null || isRowSelected || isColSelected
+        const isColSelected = !!selectedKeys?.has(colKey)
+        const isHighlighted = (selectedKeys?.size ?? 0) === 0 || isRowSelected || isColSelected
         const desc =
           v == null ? '数据不足'
           : diag ? `${ASSET_BY_KEY[rowKey]?.symbol} 自身`
