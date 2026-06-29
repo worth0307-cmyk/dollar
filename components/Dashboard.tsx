@@ -68,7 +68,7 @@ export default function Dashboard() {
   const [range, setRange]           = useState('3mo')
   const [anchor, setAnchor]         = useState<'period' | 'ytd'>('ytd')
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  const [selectedAsset, setSelectedAsset] = useState<string | null>(null)
+  const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set())
   const [selectedMove, setSelectedMove] = useState<{ key: string; time: number } | null>(null)
 
   const { data: market, isLoading: marketLoading } = useSWR<MarketAsset[]>(
@@ -115,8 +115,15 @@ export default function Dashboard() {
     [pastEvents, eventsData?.upcoming]
   )
 
+  // Multi-select: clicking an asset toggles its membership in the set, so any
+  // number of assets can be highlighted at once (empty set = nothing locked).
   const toggleAsset = useCallback(
-    (key: string) => setSelectedAsset((prev) => (prev === key ? null : key)),
+    (key: string) =>
+      setSelectedAssets((prev) => {
+        const next = new Set(prev)
+        next.has(key) ? next.delete(key) : next.add(key)
+        return next
+      }),
     []
   )
 
@@ -210,7 +217,7 @@ export default function Dashboard() {
               <div key={asset.key} className="animate-fade-up h-full" style={{ animationDelay: `${i * 60}ms` }}>
                 <PriceCard
                   asset={asset}
-                  selected={selectedAsset === asset.key}
+                  selected={selectedAssets.has(asset.key)}
                   onSelect={() => toggleAsset(asset.key)}
                   periodChg={stats[asset.key]?.changePct ?? null}
                   anchorLabel={anchor === 'ytd' ? 'YTD' : '区间'}
@@ -228,7 +235,7 @@ export default function Dashboard() {
               <h2 className="text-sm font-semibold text-gray-100">Performance</h2>
               <p className="text-[10px] text-gray-500 hidden sm:block">
                 归一化涨跌幅 · 点击图例隐藏/显示 · 圆点 = 异常波动日
-                {selectedAsset && <span className="text-blue-400 ml-2">· 已锁定高亮</span>}
+                {selectedAssets.size > 0 && <span className="text-blue-400 ml-2">· 已锁定高亮</span>}
               </p>
             </div>
             <div className="flex gap-1 shrink-0">
@@ -260,7 +267,7 @@ export default function Dashboard() {
               events={pastEvents}
               anchor={anchor}
               onAnchorChange={setAnchor}
-              selectedKey={selectedAsset}
+              selectedKeys={selectedAssets}
               onSelectKey={toggleAsset}
               selectedMove={selectedMove}
             />
@@ -296,7 +303,7 @@ export default function Dashboard() {
             <CorrelationMatrix
               keys={correlation.keys}
               matrix={correlation.matrix}
-              selectedKey={selectedAsset}
+              selectedKeys={selectedAssets}
               onSelectKey={toggleAsset}
             />
           )}

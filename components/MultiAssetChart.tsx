@@ -123,7 +123,7 @@ interface Props {
   events?: MacroEvent[]
   anchor: 'period' | 'ytd'
   onAnchorChange: (a: 'period' | 'ytd') => void
-  selectedKey?: string | null
+  selectedKeys?: Set<string>
   onSelectKey?: (key: string) => void
   selectedMove?: { key: string; time: number } | null
 }
@@ -138,7 +138,7 @@ export default function MultiAssetChart({
   events,
   anchor,
   onAnchorChange,
-  selectedKey,
+  selectedKeys,
   onSelectKey,
   selectedMove,
 }: Props) {
@@ -409,8 +409,8 @@ export default function MultiAssetChart({
               ))}
 
               {ASSETS.map((a) => {
-                const isAssetSelected = selectedKey === a.key
-                const isDimmed = selectedKey != null && !isAssetSelected
+                const isAssetSelected = !!selectedKeys?.has(a.key)
+                const isDimmed = (selectedKeys?.size ?? 0) > 0 && !isAssetSelected
                 const assetMoves = movesByKey.get(a.key)
 
                 return (
@@ -463,8 +463,8 @@ export default function MultiAssetChart({
       <div className="mt-4 flex flex-wrap gap-x-2 sm:gap-x-5 gap-y-2">
         {ASSETS.map((a) => {
           const isHidden = hidden.has(a.key)
-          const isSelected = selectedKey === a.key
-          const isDimmed = selectedKey != null && !isSelected
+          const isSelected = !!selectedKeys?.has(a.key)
+          const isDimmed = (selectedKeys?.size ?? 0) > 0 && !isSelected
           const chg = stats?.[a.key]?.changePct
           return (
             <button
