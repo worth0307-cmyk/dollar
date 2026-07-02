@@ -142,7 +142,7 @@ export default function Dashboard() {
       : null
 
   return (
-    <div className="min-h-screen text-gray-100 p-4 md:p-6 max-w-[1600px] mx-auto w-full">
+    <div className="min-h-screen text-gray-100 p-4 md:p-6 w-full">
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3 animate-fade-up">
         <div>
