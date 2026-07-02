@@ -66,7 +66,7 @@ function Clock() {
 
 export default function Dashboard() {
   const [range, setRange]           = useState('3mo')
-  const [anchor, setAnchor]         = useState<'period' | 'ytd'>('ytd')
+  const [anchor, setAnchor]         = useState<'period' | 'ytd'>('period')
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set())
   const [selectedMove, setSelectedMove] = useState<{ key: string; time: number } | null>(null)
@@ -142,7 +142,7 @@ export default function Dashboard() {
       : null
 
   return (
-    <div className="min-h-screen text-gray-100 p-4 md:p-6 w-full">
+    <div className="min-h-screen text-gray-100 p-4 md:p-6 max-w-[2048px] mx-auto w-full">
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3 animate-fade-up">
         <div>
