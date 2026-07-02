@@ -188,6 +188,7 @@ export default function MultiAssetChart({
   // from the sparse axis ticks, so it never matches a data point's timestamp.
   // We index chartData directly by that row index instead.
   const legendPctRefs = useRef<Map<string, HTMLSpanElement>>(new Map())
+  const legendPriceRefs = useRef<Map<string, HTMLSpanElement>>(new Map())
   const hoverRowRef = useRef<Record<string, number> | null>(null)
   const legendRafRef = useRef<number | null>(null)
 
@@ -195,12 +196,21 @@ export default function MultiAssetChart({
     legendRafRef.current = null
     const row = hoverRowRef.current
     ASSETS.forEach((a) => {
-      const span = legendPctRefs.current.get(a.key)
-      if (!span) return
-      const v = row ? row[a.key] : stats?.[a.key]?.changePct
-      if (v == null) { span.textContent = ''; return }
-      span.textContent = `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
-      span.style.color = v >= 0 ? '#34D399' : '#EF4444'
+      const pctSpan = legendPctRefs.current.get(a.key)
+      if (pctSpan) {
+        const v = row ? row[a.key] : stats?.[a.key]?.changePct
+        if (v == null) {
+          pctSpan.textContent = ''
+        } else {
+          pctSpan.textContent = `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
+          pctSpan.style.color = v >= 0 ? '#34D399' : '#EF4444'
+        }
+      }
+      const priceSpan = legendPriceRefs.current.get(a.key)
+      if (priceSpan) {
+        const p = row ? row[`${a.key}__p`] : lastPrices[a.key]
+        priceSpan.textContent = p != null ? fmtPrice(p, a.key) : ''
+      }
     })
   }
 
@@ -234,7 +244,7 @@ export default function MultiAssetChart({
       return next
     })
 
-  const { chartData, movesByKey } = useMemo(() => {
+  const { chartData, movesByKey, lastPrices } = useMemo(() => {
     const ranges = new Map<string, { min: number; max: number }>()
     ASSETS.forEach((a) => {
       let min = Infinity, max = -Infinity
@@ -268,7 +278,17 @@ export default function MultiAssetChart({
       movesByKey.get(m.key)!.set(m.time, m)
     })
 
-    return { chartData, movesByKey }
+    // Last non-null raw price per asset — the legend's default price when not
+    // hovering (pairs with the period-end % shown next to it).
+    const lastPrices: Record<string, number> = {}
+    ASSETS.forEach((a) => {
+      for (let i = chartData.length - 1; i >= 0; i--) {
+        const p = chartData[i][`${a.key}__p`]
+        if (p != null) { lastPrices[a.key] = p; break }
+      }
+    })
+
+    return { chartData, movesByKey, lastPrices }
   }, [data, moves])
 
   // Non-news, high/medium impact past events within the chart's time range.
@@ -486,6 +506,16 @@ export default function MultiAssetChart({
                 }}
               />
               <span className={isSelected ? 'text-white font-medium' : 'text-gray-200'}>{a.symbol}</span>
+              <span
+                ref={(el) => {
+                  if (el) legendPriceRefs.current.set(a.key, el)
+                  else legendPriceRefs.current.delete(a.key)
+                }}
+                className="font-mono text-[11px]"
+                style={{ color: `${a.color}cc` }}
+              >
+                {lastPrices[a.key] != null ? fmtPrice(lastPrices[a.key], a.key) : ''}
+              </span>
               <span
                 ref={(el) => {
                   if (el) legendPctRefs.current.set(a.key, el)
