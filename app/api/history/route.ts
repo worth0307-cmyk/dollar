@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { fetchYahooHistory } from '@/lib/yahoo'
-import { cacheGet, cacheSet } from '@/lib/cache'
+import { cacheGet, cacheSet, dedupeInflight } from '@/lib/cache'
+import { ASSET_KEYS } from '@/lib/assets'
 import {
   correlationMatrix,
   notableMoves,
@@ -10,9 +11,10 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-const KEYS = ['dxy', 'btc', 'brent', 'gold', 'sp500']
+const KEYS = ASSET_KEYS
 const TTL = 15 * 60_000
 const YTD_BASELINE_TTL = 60 * 60_000 // 1h — daily closes don't change intraday
+const PARTIAL_TTL = 5 * 60_000 // incomplete data (Yahoo hiccup) → retry soon
 
 interface HistoryPayload {
   series: Record<string, number>[]
@@ -43,10 +45,17 @@ async function get1YMaps(): Promise<(PriceMap | null)[]> {
   const hit = cacheGet<(PriceMap | null)[]>(cacheKey)
   if (hit) return hit
 
-  const results = await Promise.allSettled(KEYS.map((k) => fetchYahooHistory(k, '1y', '1d')))
-  const maps = buildMaps(results)
-  cacheSet(cacheKey, maps, YTD_BASELINE_TTL)
-  return maps
+  return dedupeInflight(cacheKey, async () => {
+    const results = await Promise.allSettled(KEYS.map((k) => fetchYahooHistory(k, '1y', '1d')))
+    const maps = buildMaps(results)
+    // Don't let a Yahoo outage poison downstream caches (moves, YTD bases) for
+    // a full hour: complete data caches normally, partial data retries soon,
+    // an all-failed fetch is never cached.
+    const okCount = maps.filter((m) => m && m.size > 0).length
+    if (okCount === KEYS.length) cacheSet(cacheKey, maps, YTD_BASELINE_TTL)
+    else if (okCount > 0) cacheSet(cacheKey, maps, PARTIAL_TTL)
+    return maps
+  })
 }
 
 // Notable moves are computed once over a stable ~1Y window so a day's z-score
@@ -62,11 +71,15 @@ async function getYearMoves(): Promise<ReturnType<typeof notableMoves>> {
   // High cap so we keep every >2σ day in the year; the route caps display to 20.
   const moves = notableMoves(KEYS, maps, 1000, 2)
 
-  cacheSet(cacheKey, moves, YTD_BASELINE_TTL)
+  const complete = maps.every((m) => m && m.size > 0)
+  cacheSet(cacheKey, moves, complete ? YTD_BASELINE_TTL : PARTIAL_TTL)
   return moves
 }
 
-// Fetch year-to-date baseline prices (Jan 1 of current year) — cached separately.
+// Fetch year-to-date baseline prices — cached separately.
+// YTD convention: baseline = the prior year's LAST close, so the first trading
+// day of January contributes to the YTD move. Falls back to the first close on
+// or after Jan 1 for assets whose history doesn't reach into the prior year.
 async function getYtdBases(): Promise<(number | null)[]> {
   const cacheKey = 'ytd:bases'
   const hit = cacheGet<(number | null)[]>(cacheKey)
@@ -77,13 +90,19 @@ async function getYtdBases(): Promise<(number | null)[]> {
 
   const bases = (await get1YMaps()).map((m) => {
     if (!m) return null
-    for (const d of [...m.keys()].sort()) {
-      if (d >= ytdStart) return m.get(d)!
+    const dates = [...m.keys()].sort()
+    let prior: string | null = null
+    for (const d of dates) {
+      if (d < ytdStart) prior = d
+      else break
     }
+    if (prior) return m.get(prior)!
+    for (const d of dates) if (d >= ytdStart) return m.get(d)!
     return null
   })
 
-  cacheSet(cacheKey, bases, YTD_BASELINE_TTL)
+  const complete = bases.every((b) => b != null)
+  cacheSet(cacheKey, bases, complete ? YTD_BASELINE_TTL : PARTIAL_TTL)
   return bases
 }
 
@@ -94,8 +113,18 @@ export async function GET(request: Request) {
   const cacheKey = `history:${range}:${anchor}`
 
   const hit = cacheGet<HistoryPayload>(cacheKey)
-  if (hit) return NextResponse.json(hit, { headers: { 'X-Cache': 'HIT' } })
+  if (hit)
+    return NextResponse.json(hit, {
+      headers: { 'Cache-Control': 'no-store', 'X-Cache': 'HIT' },
+    })
 
+  const payload = await dedupeInflight(cacheKey, () => buildPayload(range, anchor, cacheKey))
+  return NextResponse.json(payload, {
+    headers: { 'Cache-Control': 'no-store', 'X-Cache': 'MISS' },
+  })
+}
+
+async function buildPayload(range: string, anchor: string, cacheKey: string): Promise<HistoryPayload> {
   // Fetch price data for the requested display range.
   const results = await Promise.allSettled(KEYS.map((k) => fetchYahooHistory(k, range)))
   const maps = buildMaps(results)
@@ -164,8 +193,8 @@ export async function GET(request: Request) {
     stats: rawStats,
   }
 
-  if (series.length) cacheSet(cacheKey, payload, TTL)
-  return NextResponse.json(payload, {
-    headers: { 'Cache-Control': 'no-store', 'X-Cache': 'MISS' },
-  })
+  // Incomplete data (an asset's fetch failed) caches briefly so it heals fast.
+  const complete = maps.every((m) => m && m.size > 0)
+  if (series.length) cacheSet(cacheKey, payload, complete ? TTL : PARTIAL_TTL)
+  return payload
 }

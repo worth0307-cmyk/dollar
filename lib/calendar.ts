@@ -172,6 +172,8 @@ async function fetchWeek(which: 'thisweek' | 'nextweek'): Promise<FFEvent[]> {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       Accept: 'application/json,text/plain,*/*',
     },
+    // A hung feed would otherwise stall the whole /api/events cold response.
+    signal: AbortSignal.timeout(10_000),
   })
   if (!res.ok) {
     const body = await res.text().catch(() => '')

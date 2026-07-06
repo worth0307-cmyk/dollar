@@ -59,8 +59,20 @@ function fomcEvent(d: FomcDate): MacroEvent {
   }
 }
 
-// 未来的 FOMC 会议（日期晚于今天），随日期自动滚动。
+// 未来的 FOMC 会议（今天及以后），随日期自动滚动。决议日当天全天保留在
+// "即将发生"，次日起由 expiredFomcEvents() 转入历史列表。
 export function upcomingFomcEvents(): MacroEvent[] {
   const today = new Date().toISOString().slice(0, 10)
-  return FOMC_DATES.filter((d) => d.date > today).map(fomcEvent)
+  return FOMC_DATES.filter((d) => d.date >= today).map(fomcEvent)
+}
+
+// 已过去的 FOMC 会议 — 兜底归档进历史事件，保证决议日之后条目不会凭空消失。
+// （经济日历 feed 的 buildReleaseFromFeed 不覆盖 FOMC，没有这条兜底路径的话，
+// 自动生成的 FOMC 条目在决议日翌日会从两个列表同时消失。）
+export function expiredFomcEvents(): MacroEvent[] {
+  const today = new Date().toISOString().slice(0, 10)
+  return FOMC_DATES.filter((d) => d.date < today).map((d) => ({
+    ...fomcEvent(d),
+    type: 'past' as const,
+  }))
 }
