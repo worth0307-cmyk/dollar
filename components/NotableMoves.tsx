@@ -3,13 +3,7 @@
 import { useRef, useEffect, useState, useMemo } from 'react'
 import { ASSETS, ASSET_BY_KEY } from '@/lib/assets'
 import type { MacroEvent } from '@/lib/events'
-
-interface Move {
-  time: number
-  key: string
-  changePct: number
-  z: number
-}
+import type { Move } from '@/lib/analytics'
 
 const IMPACT_COLOR: Record<string, string> = {
   high: '#EF4444',
@@ -17,9 +11,11 @@ const IMPACT_COLOR: Record<string, string> = {
   low: '#94A3B8',
 }
 
+// UTC getters: move timestamps are UTC midnights, so local-time formatting
+// would show the previous day for viewers in UTC-negative timezones.
 function fmtDate(ts: number) {
   const d = new Date(ts)
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+  return `${d.getUTCFullYear()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')}`
 }
 
 function fmtEventDate(s: string) {

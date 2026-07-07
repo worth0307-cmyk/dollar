@@ -324,7 +324,9 @@ export default function MacroEvents({ past, upcoming, aiUsage }: Props) {
       <div className="flex-1 min-h-0 overflow-y-auto pr-3">
         {events.length === 0 ? (
           <div className="text-sm text-gray-100 py-4 text-center">
-            {filters.size > 0 || assetFilters.size > 0 ? '无匹配的筛选结果' : '暂无数据'}
+            {assetFilters.size > 0 || (tab === 'past' && filters.size > 0)
+              ? '无匹配的筛选结果'
+              : '暂无数据'}
           </div>
         ) : (
           events.map((e) => (

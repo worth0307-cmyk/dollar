@@ -136,10 +136,12 @@ export default function Dashboard() {
   )
 
   const risk = riskSentiment(market)
-  const avgChange =
-    Array.isArray(market) && market.length > 0
-      ? market.reduce((s, a) => s + (a.changePercent ?? 0), 0) / market.length
-      : null
+  // Average over assets that actually reported a change — counting a failed
+  // fetch as 0% would dilute the mean.
+  const changes = Array.isArray(market)
+    ? market.map((a) => a.changePercent).filter((c): c is number => c != null)
+    : []
+  const avgChange = changes.length > 0 ? changes.reduce((s, c) => s + c, 0) / changes.length : null
 
   return (
     <div className="min-h-screen text-gray-100 p-4 md:p-6 max-w-[1920px] mx-auto w-full">
@@ -259,11 +261,9 @@ export default function Dashboard() {
           <div className="flex-1 min-h-0 flex flex-col">
             <MultiAssetChart
               data={series}
-              range={range}
               loading={historyLoading}
               stats={stats}
               moves={moves}
-              market={market}
               events={pastEvents}
               anchor={anchor}
               onAnchorChange={setAnchor}

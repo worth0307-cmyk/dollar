@@ -13,32 +13,23 @@ import {
   type MouseHandlerDataParam,
 } from 'recharts'
 import { ASSETS, ASSET_BY_KEY } from '@/lib/assets'
-import type { AssetStat } from '@/lib/analytics'
+import type { AssetStat, Move } from '@/lib/analytics'
 import type { MacroEvent } from '@/lib/events'
 
-interface MarketAsset {
-  key: string
-  price: number | null
-  changePercent: number | null
-}
-
-interface Move {
-  time: number
-  key: string
-  changePct: number
-  z: number
-}
+// Date formatting uses UTC getters — the timestamps are UTC midnights derived
+// from 'YYYY-MM-DD' strings, so local-time formatting would show the previous
+// day for viewers in UTC-negative timezones.
 
 // X-axis ticks: compact, no year (avoids crowding)
 function formatAxisTick(ts: number) {
   const d = new Date(ts)
-  return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }).replace('/', '.')
+  return `${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')}`
 }
 
 // Tooltip date: always includes year so the reader knows which year they're in
 function formatTooltipDate(ts: number) {
   const d = new Date(ts)
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+  return `${d.getUTCFullYear()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')}`
 }
 
 function fmtPrice(price: number | null | undefined, key: string) {
@@ -115,11 +106,9 @@ function CustomTooltip({ active, payload, label, nearEvent }: any) {
 
 interface Props {
   data: Record<string, number>[]
-  range: string
   loading?: boolean
   stats?: Record<string, AssetStat>
   moves?: Move[]
-  market?: MarketAsset[]
   events?: MacroEvent[]
   anchor: 'period' | 'ytd'
   onAnchorChange: (a: 'period' | 'ytd') => void
@@ -130,11 +119,9 @@ interface Props {
 
 export default function MultiAssetChart({
   data,
-  range,
   loading,
   stats,
   moves,
-  market,
   events,
   anchor,
   onAnchorChange,
@@ -171,6 +158,12 @@ export default function MultiAssetChart({
   }
 
   const onPlotLeave = () => {
+    // Cancel any pending frame first — a scheduled callback would otherwise
+    // fire after this and flip the just-hidden line back to visible.
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
     if (lineRef.current) lineRef.current.style.opacity = '0'
   }
 
@@ -368,6 +361,8 @@ export default function MultiAssetChart({
               margin={{ top: 10, right: 8, bottom: 4, left: 0 }}
               onMouseMove={onChartMove}
               onMouseLeave={onChartLeave}
+              onTouchMove={onChartMove}
+              onTouchEnd={onChartLeave}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
               <XAxis
@@ -470,13 +465,17 @@ export default function MultiAssetChart({
             <button
               key={a.key}
               onClick={() => {
+                // Legend click only toggles line visibility; highlighting is the
+                // price cards' job. Hiding a selected line also deselects it —
+                // otherwise an invisible line would keep dimming the visible ones.
+                const willHide = !hidden.has(a.key)
                 toggle(a.key)
-                onSelectKey?.(a.key)
+                if (willHide && selectedKeys?.has(a.key)) onSelectKey?.(a.key)
               }}
               className={`flex items-center gap-2 text-xs transition-all min-h-[36px] py-1 ${
                 isHidden ? 'opacity-30' : isDimmed ? 'opacity-40' : 'opacity-100'
               }`}
-              title={isHidden ? '点击显示' : '点击隐藏 / 高亮'}
+              title={isHidden ? '点击显示' : '点击隐藏'}
             >
               <span
                 className="w-2.5 h-2.5 rounded-full"

@@ -8,6 +8,19 @@ export function cacheGet<T>(key: string): T | null {
   return e.data as T
 }
 
+// De-duplicates concurrent cache-miss computations: while a computation for
+// `key` is in flight, later callers await the same promise instead of firing a
+// duplicate upstream fetch. The entry is evicted on settle so a failed attempt
+// never sticks around to poison the next request.
+const inflight = new Map<string, Promise<unknown>>()
+export function dedupeInflight<T>(key: string, compute: () => Promise<T>): Promise<T> {
+  const existing = inflight.get(key)
+  if (existing) return existing as Promise<T>
+  const p = compute().finally(() => inflight.delete(key))
+  inflight.set(key, p)
+  return p
+}
+
 export function cacheSet(key: string, data: unknown, ttlMs: number) {
   if (store.size >= 100) {
     const now = Date.now()

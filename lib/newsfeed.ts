@@ -90,9 +90,11 @@ const ASSET_SIGNALS: Array<{ re: RegExp; assets: string[] }> = [
   { re: /bitcoin|crypto|btc|digital asset|blockchain|defi/i, assets: ['btc'] },
 ]
 
-// Words that mark a HIGH-impact event
+// Words that mark a HIGH-impact event. Short tokens carry \b guards so common
+// financial vocabulary doesn't false-positive (bank→ban, warning→war,
+// disclosed→closed, resurgence→surge).
 const HIGH_RE =
-  /war|attack|bomb|strike|invasion|close[sd]?|closure|shutdown|seize[sd]?|sanction|crisis|emergency|hostage|blockade|missile|surge|plunge|crash|halt|ban|hack|exploit|default|collapse/i
+  /\bwars?\b|attack|bomb|\bstrikes?\b|invasion|\bclose[sd]?\b|closure|shutdown|\bseize[sd]?\b|sanction|crisis|emergency|hostage|blockade|missile|\bsurge[sd]?\b|plunge|crash|\bhalt(?:s|ed)?\b|\bban(?:s|ned)?\b|\bhack(?:s|ed|ing|er)?\b|exploit|default|collapse/i
 
 function inferAssets(title: string, hints: string[] = []): string[] {
   const found = new Set<string>(hints)
@@ -109,7 +111,7 @@ function inferAssets(title: string, hints: string[] = []): string[] {
   // only re-added an asset already present in the feed's hints.
   if (
     !matched &&
-    /conflict|military|troops|forces|war|tension|israel|iran|russia|ukraine/i.test(title)
+    /conflict|military|troops|forces|\bwars?\b|tension|israel|iran|russia|ukraine/i.test(title)
   ) {
     found.add('brent')
     found.add('gold')
@@ -136,7 +138,7 @@ const ZH_TOPICS: Array<{ re: RegExp; phrase: string }> = [
   { re: /hormuz|strait/i, phrase: '霍尔木兹海峡局势' },
   { re: /opec/i, phrase: 'OPEC+ 产量动态' },
   { re: /sanction|embargo/i, phrase: '制裁与禁运' },
-  { re: /war|attack|strike|missile|invasion|conflict|military|troops/i, phrase: '地缘冲突' },
+  { re: /\bwars?\b|attack|\bstrikes?\b|missile|invasion|conflict|military|troops/i, phrase: '地缘冲突' },
   { re: /pipeline|tanker|refin/i, phrase: '能源基础设施' },
   { re: /supply|output|production|export|barrel/i, phrase: '原油供应' },
   { re: /gas|lng/i, phrase: '天然气市场' },
@@ -166,14 +168,18 @@ function zhNarrative(title: string, assets: string[], impact: 'high' | 'medium')
 }
 
 function decodeEntities(s: string): string {
+  const cp = (n: number) => (n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : '')
   return s
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;|&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => cp(parseInt(n, 16)))
+    .replace(/&#(\d+);/g, (_, n) => cp(Number(n)))
+    // &amp; must be decoded LAST so escaped entities like "&amp;lt;" come out
+    // as the literal "&lt;" instead of being double-decoded into "<".
+    .replace(/&amp;/g, '&')
     .trim()
 }
 
@@ -220,8 +226,11 @@ function dedup<T extends { title: string; date?: string }>(items: T[]): T[] {
       .slice(0, 3)
       .sort()
       .join('|')
-    if (!kw) return false
-    const fp = `${a.date ?? ''}#${kw}`
+    // Titles made entirely of short words can't produce a keyword fingerprint —
+    // fall back to the normalized whole title instead of dropping the item.
+    const fallback = a.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 40)
+    if (!kw && !fallback) return false
+    const fp = `${a.date ?? ''}#${kw || fallback}`
     if (seen.has(fp)) return false
     seen.add(fp)
     return true
@@ -329,10 +338,13 @@ async function translateViaWorkersAIDetailed(text: string): Promise<WaiResult> {
     recordBlocked()
     return { zh: text, configured: true, blocked: true, error: 'daily budget cap reached' }
   }
-  recordSpend()
   const inputs = { text, source_lang: 'english', target_lang: 'chinese' }
 
   if (ai) {
+    // One recordSpend per real Workers AI invocation — the binding call and a
+    // REST fallback are two spends, not one. Over-counting on failures is the
+    // safe direction for a budget whose job is to stay inside the free tier.
+    recordSpend()
     try {
       const out = (await ai.run(CF_AI_MODEL, inputs)) as { translated_text?: string }
       const translated = out?.translated_text ?? ''
@@ -347,6 +359,11 @@ async function translateViaWorkersAIDetailed(text: string): Promise<WaiResult> {
     }
   }
 
+  if (!canSpend()) {
+    recordBlocked()
+    return { zh: text, configured: true, blocked: true, error: 'daily budget cap reached' }
+  }
+  recordSpend()
   try {
     const res = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${id}/ai/run/${CF_AI_MODEL}`,
