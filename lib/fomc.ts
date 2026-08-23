@@ -51,7 +51,9 @@ function fomcEvent(d: FomcDate): MacroEvent {
       ? '美联储议息会议，同步发布季度经济预测（点阵图）。点阵图对后续降息路径的指引是跨资产关注焦点。'
       : '美联储公开市场委员会利率决策，直接影响美元走势及全球风险偏好。',
     impact: 'high',
-    assets: d.sep ? ['dxy', 'sp500', 'gold', 'brent', 'btc'] : ['dxy', 'sp500', 'gold'],
+    // USD/JPY is the most rate-sensitive pair on the board (US-Japan spread),
+    // so every FOMC decision is tagged for it.
+    assets: d.sep ? ['dxy', 'sp500', 'gold', 'brent', 'btc', 'usdjpy'] : ['dxy', 'sp500', 'gold', 'usdjpy'],
     type: 'upcoming',
     url: FOMC_URL,
     beat: '鸽派惊喜/降息落地 → DXY↓，黄金+美股+BTC齐升，风险偏好回暖',

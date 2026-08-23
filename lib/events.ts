@@ -3,7 +3,7 @@ export interface MacroEvent {
   title: string
   description: string
   impact: 'high' | 'medium' | 'low'
-  assets: string[]    // keys: dxy | btc | brent | gold | sp500
+  assets: string[]    // keys: dxy | btc | brent | gold | sp500 | usdjpy
   type: 'past' | 'upcoming'
   url?: string        // link to official source or news coverage
   beat?: string       // market impact if data beats expectations

@@ -33,7 +33,7 @@ const TEMPLATES: Array<{ keywords: string[]; template: EventTemplate }> = [
     template: {
       title: 'FOMC 利率决议',
       description: '美联储公开市场委员会利率决策，直接影响美元走势及全球风险偏好。',
-      assets: ['dxy', 'sp500', 'gold', 'btc'],
+      assets: ['dxy', 'sp500', 'gold', 'btc', 'usdjpy'],
       beat: '鸽派惊喜/降息落地 → DXY↓，黄金+美股+BTC齐升，风险偏好回暖',
       miss: '鹰派/维持不变 → DXY↑，金价承压，美股震荡，降息预期延后',
       url: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',

@@ -16,6 +16,8 @@ export const ASSETS: AssetMeta[] = [
   { key: 'brent', symbol: 'Brent', name: 'Brent Crude', color: '#EF4444', icon: '🛢', prefix: '$', suffix: '/bbl', decimals: 2 },
   { key: 'gold', symbol: 'Gold', name: 'Gold', color: '#FCD34D', icon: '◈', prefix: '$', suffix: '/oz', decimals: 1 },
   { key: 'sp500', symbol: 'S&P 500', name: 'S&P 500', color: '#34D399', icon: '📈', prefix: '', suffix: '', decimals: 1 },
+  // USD/JPY — yen per dollar, so a rising line is a stronger dollar.
+  { key: 'usdjpy', symbol: 'USD/JPY', name: 'Dollar-Yen', color: '#A78BFA', icon: '¥', prefix: '', suffix: '', decimals: 2 },
 ]
 
 export const ASSET_KEYS = ASSETS.map((a) => a.key)

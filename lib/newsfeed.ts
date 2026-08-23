@@ -88,6 +88,8 @@ const ASSET_SIGNALS: Array<{ re: RegExp; assets: string[] }> = [
   { re: /dollar|usd|sanction|treasury|forex|fed\b|federal reserve|fomc|rate hike|rate cut/i, assets: ['dxy'] },
   { re: /stock|equit|nasdaq|dow jones|s&p|wall street|market (crash|plunge|surge)/i, assets: ['sp500'] },
   { re: /bitcoin|crypto|btc|digital asset|blockchain|defi/i, assets: ['btc'] },
+  // USD/JPY — BoJ policy, yen intervention and carry-trade stories.
+  { re: /\byen\b|\bjpy\b|japan|\bboj\b|bank of japan|carry trade/i, assets: ['usdjpy'] },
 ]
 
 // Words that mark a HIGH-impact event. Short tokens carry \b guards so common
@@ -130,6 +132,7 @@ const ASSET_ZH: Record<string, string> = {
   dxy: '美元指数',
   sp500: '美股',
   btc: '比特币',
+  usdjpy: '美元兑日元',
 }
 
 // Headline keywords → Chinese topic phrase for the auto-generated narrative
@@ -148,6 +151,7 @@ const ZH_TOPICS: Array<{ re: RegExp; phrase: string }> = [
   { re: /inflation|cpi|pce|core inflation/i, phrase: '通胀数据' },
   { re: /employment|jobs|unemployment|payroll|nonfarm/i, phrase: '就业市场' },
   { re: /dollar|usd|dxy|forex|exchange rate/i, phrase: '美元汇率' },
+  { re: /\byen\b|\bjpy\b|\bboj\b|bank of japan|japan/i, phrase: '日元与日本央行政策' },
   // Gold
   { re: /gold|bullion|precious metal|silver/i, phrase: '黄金市场' },
   // Crypto
