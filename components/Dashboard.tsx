@@ -7,6 +7,7 @@ import PriceCard from './PriceCard'
 import CorrelationMatrix from './CorrelationMatrix'
 import NotableMoves from './NotableMoves'
 import MacroEvents, { type AiUsage } from './MacroEvents'
+import { ASSETS } from '@/lib/assets'
 import type { MacroEvent } from '@/lib/events'
 
 const RANGES = [
@@ -206,9 +207,12 @@ export default function Dashboard() {
       </div>
 
       {/* ── Price Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-4">
+      {/* 6 assets: 2 cols on phones, 3 on tablets, one full row from xl up —
+          xl (not lg) so each card keeps ~200px and the name never crowds the
+          change pill. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-3 mb-4">
         {marketLoading
-          ? Array.from({ length: 5 }).map((_, i) => (
+          ? Array.from({ length: ASSETS.length }).map((_, i) => (
               <div
                 key={i}
                 className="rounded-xl bg-gray-900/60 border border-gray-800 h-28 animate-pulse"

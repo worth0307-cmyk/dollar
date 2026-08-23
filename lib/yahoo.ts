@@ -89,6 +89,9 @@ const KEY_TO_SYMBOL: Record<string, string> = {
   brent: 'BZ=F',
   sp500: '^GSPC',
   btc: 'BTC-USD',
+  // Yahoo FX convention: a bare quote currency means USD is the base, so
+  // JPY=X is USD/JPY (yen per dollar) — up = stronger dollar / weaker yen.
+  usdjpy: 'JPY=X',
 }
 
 // Fetch a chart result. The /v8/finance/chart endpoint is normally public, so
